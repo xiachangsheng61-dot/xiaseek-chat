@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聚合对话 - 多模型同时回答</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/bash.min.js"></script>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --text: #1a1a2e;
+    --text-secondary: #6b7280;
+    --border: #e5e7eb;
+    --primary: #FF6B6B;
+  }
+  .dark { --bg: #121212; --card-bg: #1e1e2e; --text: #e0e0e0; --text-secondary: #9ca3af; --border: #333; }
+  body { background: var(--bg); color: var(--text); transition: background 0.2s, color 0.2s; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; }
+  .resize-handle { width: 6px; cursor: col-resize; background: transparent; transition: background 0.2s; flex-shrink: 0; }
+  .resize-handle:hover, .resize-handle.active { background: var(--primary); }
+  .typing::after { content: '▊'; animation: blink 1s infinite; }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+  .model-content pre { background: #1e1e2e; border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+  .model-content code { font-size: 13px; }
+  .model-content p { margin: 4px 0; }
+  .model-content ul, .model-content ol { margin: 4px 0; padding-left: 20px; }
+  .model-content h1, .model-content h2, .model-content h3 { margin: 8px 0 4px; }
+  .model-content blockquote { border-left: 3px solid var(--primary); padding-left: 12px; margin: 4px 0; opacity: 0.8; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- 顶部导航 -->
+  <nav class="flex items-center justify-between px-4 md:px-6 py-3 border-b flex-shrink-0" style="background:var(--card-bg); border-color:var(--border);">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-lg font-bold no-underline" style="color:var(--primary);">🦐 虾SeekAI</a>
+      <span class="text-sm hidden sm:inline" style="color:var(--text-secondary);">| 聚合对话</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="themeToggle" class="text-xl cursor-pointer px-1">🌓</button>
+      <button id="settingsBtn" class="px-3 py-1.5 rounded-lg text-sm border cursor-pointer" style="border-color:var(--border);">⚙️ 模型设置</button>
+      <a href="/" class="px-3 py-1.5 rounded-lg text-sm border cursor-pointer no-underline" style="border-color:var(--border); color:var(--text);">← 返回导航</a>
+    </div>
+  </nav>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 flex flex-col px-3 md:px-4 py-3 max-w-[1600px] mx-auto w-full min-h-0">
+    <!-- 输入区 -->
+    <div class="flex-shrink-0 mb-3">
+      <div class="flex gap-2 md:gap-3">
+        <textarea id="userInput" rows="2" class="flex-1 p-3 rounded-xl resize-none text-base" style="background:var(--card-bg); border:1px solid var(--border); color:var(--text);"
+          placeholder="输入你的问题，多个模型将同时回答...&#10;提示：按 Ctrl+Enter 发送"></textarea>
+        <div class="flex flex-col gap-2 flex-shrink-0">
+          <button id="sendBtn" onclick="sendMessage()" class="px-4 md:px-6 py-2 rounded-xl text-white font-semibold cursor-pointer text-sm md:text-base" style="background:var(--primary);">🚀 发送</button>
+          <button id="clearBtn" onclick="clearAll()" class="px-4 md:px-6 py-2 rounded-xl text-sm border cursor-pointer" style="border-color:var(--border); color:var(--text-secondary);">清空</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模型卡片容器 -->
+    <div id="cardsContainer" class="flex-1 flex gap-0 overflow-hidden min-h-0">
+      <div class="flex-1 flex items-center justify-center" style="color:var(--text-secondary);">
+        <p>正在加载模型列表...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- 模型设置弹窗 -->
+  <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center hidden" style="background:rgba(0,0,0,0.5);">
+    <div class="card p-6 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto mx-4">
+      <h2 class="text-lg font-bold mb-4">⚙️ 模型设置</h2>
+      <p class="text-sm mb-3" style="color:var(--text-secondary);">勾选要使用的模型，更改实时生效</p>
+      <div id="modelChecklist" class="space-y-2 mb-4"></div>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeSettings()" class="px-4 py-2 rounded-lg border cursor-pointer" style="border-color:var(--border);">关闭</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ===== 状态管理 =====
+const API_BASE = window.location.origin;
+let availableModels = [];
+let activeModels = [];
+let panelWidths = {};
+let isLoading = false;
+
+// ===== 初始化 =====
+async function init() {
+  initTheme();
+  await loadModels();
+  loadActiveModels();
+  loadPanelWidths();
+  renderCards();
+  setupKeyboardShortcut();
+}
+
+async function loadModels() {
+  try {
+    const res = await fetch(`${API_BASE}/api/models`);
+    const data = await res.json();
+    availableModels = data.models || [];
+  } catch (err) {
+    console.error('加载模型列表失败:', err);
+    availableModels = [];
+  }
+}
+
+function loadActiveModels() {
+  const saved = localStorage.getItem('xiaseek_active_models');
+  if (saved) {
+    const savedIds = JSON.parse(saved);
+    activeModels = savedIds.filter(id => availableModels.some(m => m.id === id));
+  }
+  if (!activeModels.length) {
+    activeModels = availableModels.map(m => m.id);
+  }
+}
+
+function saveActiveModels() {
+  localStorage.setItem('xiaseek_active_models', JSON.stringify(activeModels));
+}
+
+function loadPanelWidths() {
+  const saved = localStorage.getItem('xiaseek_panel_widths');
+  panelWidths = saved ? JSON.parse(saved) : {};
+}
+
+function savePanelWidths() {
+  localStorage.setItem('xiaseek_panel_widths', JSON.stringify(panelWidths));
+}
+
+// ===== 主题 =====
+function initTheme() {
+  const saved = localStorage.getItem('xiaseek_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) {
+    document.body.classList.add('dark');
+  }
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  const isDark = document.body.classList.contains('dark');
+  localStorage.setItem('xiaseek_theme', isDark ? 'dark' : 'light');
+});
+
+// ===== 渲染模型卡片 =====
+function renderCards() {
+  const container = document.getElementById('cardsContainer');
+  const models = activeModels.map(id => availableModels.find(m => m.id === id)).filter(Boolean);
+
+  if (!models.length) {
+    container.innerHTML = `<div class="flex-1 flex items-center justify-center" style="color:var(--text-secondary);">
+      <div class="text-center"><p class="text-lg mb-2">🤖</p><p>暂无可用模型</p><p class="text-xs mt-1">请检查 .env 中的API密钥配置，或点击"模型设置"</p></div>
+    </div>`;
+    return;
+  }
+
+  const defaultWidth = 100 / models.length;
+
+  let html = '';
+  models.forEach((model, i) => {
+    const width = panelWidths[model.id] || defaultWidth;
+    html += `<div class="card flex flex-col overflow-hidden" style="width:${width}%; min-width:180px;" data-model="${model.id}">
+      <div class="flex items-center gap-2 px-3 py-2 border-b flex-shrink-0" style="border-color:var(--border);">
+        <span class="text-base">${model.icon || '🤖'}</span>
+        <span class="text-sm font-semibold flex-1 truncate">${model.name}</span>
+        <span class="text-xs flex-shrink-0" id="status-${model.id}" style="color:var(--text-secondary);">⏳</span>
+      </div>
+      <div class="flex-1 overflow-y-auto p-3 model-content text-sm" id="content-${model.id}">
+        <p style="color:var(--text-secondary);">等待输入问题...</p>
+      </div>
+    </div>`;
+    if (i < models.length - 1) {
+      html += `<div class="resize-handle" onmousedown="startResize(event, ${i})"></div>`;
+    }
+  });
+
+  container.innerHTML = html;
+}
+
+// ===== 面板缩放 =====
+let resizeState = null;
+
+function startResize(e, index) {
+  e.preventDefault();
+  const cards = document.querySelectorAll('#cardsContainer .card');
+  resizeState = {
+    index,
+    startX: e.clientX,
+    leftCard: cards[index],
+    rightCard: cards[index + 1],
+    leftStartWidth: cards[index].offsetWidth,
+    rightStartWidth: cards[index + 1].offsetWidth
+  };
+
+  const handles = document.querySelectorAll('.resize-handle');
+  if (handles[index]) handles[index].classList.add('active');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+
+  document.addEventListener('mousemove', onResize);
+  document.addEventListener('mouseup', stopResize);
+}
+
+function onResize(e) {
+  if (!resizeState) return;
+  const containerWidth = document.getElementById('cardsContainer').offsetWidth;
+  const dx = e.clientX - resizeState.startX;
+
+  const leftPct = ((resizeState.leftStartWidth + dx) / containerWidth) * 100;
+  const rightPct = ((resizeState.rightStartWidth - dx) / containerWidth) * 100;
+
+  if (leftPct > 10 && rightPct > 10) {
+    resizeState.leftCard.style.width = leftPct + '%';
+    resizeState.rightCard.style.width = rightPct + '%';
+  }
+}
+
+function stopResize() {
+  if (!resizeState) return;
+  document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  document.removeEventListener('mousemove', onResize);
+  document.removeEventListener('mouseup', stopResize);
+
+  document.querySelectorAll('#cardsContainer .card').forEach(card => {
+    const modelId = card.dataset.model;
+    const width = parseFloat(card.style.width);
+    if (!isNaN(width)) panelWidths[modelId] = width;
+  });
+  savePanelWidths();
+
+  resizeState = null;
+}
+
+// ===== 发送消息 =====
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('userInput');
+  const message = input.value.trim();
+  if (!message) return;
+
+  const models = activeModels.map(id => availableModels.find(m => m.id === id)).filter(Boolean);
+  if (!models.length) return alert('请先选择至少一个模型');
+
+  isLoading = true;
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳';
+
+  models.forEach(m => {
+    const contentEl = document.getElementById(`content-${m.id}`);
+    if (contentEl) contentEl.innerHTML = '<p class="typing" style="color:var(--text-secondary);">思考中...</p>';
+    const statusEl = document.getElementById(`status-${m.id}`);
+    if (statusEl) statusEl.textContent = '💭';
+  });
+
+  try {
+    const res = await fetch(`${API_BASE}/api/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, modelIds: activeModels, conversationHistory: [] })
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const modelContents = {};
+    models.forEach(m => { modelContents[m.id] = ''; });
+
+    // SSE state machine
+    let currentEvent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6);
+          if (!currentEvent) continue;
+          try {
+            const data = JSON.parse(dataStr);
+            handleSSEEvent(currentEvent, data, modelContents);
+          } catch (e) { console.warn('SSE解析失败:', dataStr, e); }
+          currentEvent = '';
+        }
+      }
+    }
+  } catch (err) {
+    console.error('请求失败:', err);
+    activeModels.forEach(id => {
+      const el = document.getElementById(`content-${id}`);
+      if (el) el.innerHTML = `<p style="color:#ef4444;">❌ 连接失败: ${escapeHtml(err.message)}</p>`;
+      const st = document.getElementById(`status-${id}`);
+      if (st) st.textContent = '❌';
+    });
+  } finally {
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('sendBtn').textContent = '🚀 发送';
+  }
+}
+
+function handleSSEEvent(event, data, modelContents) {
+  const modelId = data.modelId;
+  if (!modelId) return;
+
+  if (event === 'chunk') {
+    modelContents[modelId] = (modelContents[modelId] || '') + data.content;
+    updateCardContent(modelId, modelContents[modelId], false);
+    const st = document.getElementById(`status-${modelId}`);
+    if (st) st.textContent = '💬';
+  } else if (event === 'complete') {
+    modelContents[modelId] = data.content || modelContents[modelId];
+    updateCardContent(modelId, modelContents[modelId], true);
+    const st = document.getElementById(`status-${modelId}`);
+    if (st) st.textContent = '✅';
+  } else if (event === 'error') {
+    const el = document.getElementById(`content-${modelId}`);
+    if (el) el.innerHTML = `<p style="color:#ef4444;">❌ ${escapeHtml(data.error)}</p>`;
+    const st = document.getElementById(`status-${modelId}`);
+    if (st) st.textContent = '❌';
+  }
+}
+
+function updateCardContent(modelId, content, isComplete) {
+  const el = document.getElementById(`content-${modelId}`);
+  if (!el) return;
+  const html = marked.parse(content);
+  el.innerHTML = html + (isComplete ? '' : '<span class="typing"></span>');
+  el.scrollTop = el.scrollHeight;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ===== 清空 =====
+function clearAll() {
+  document.getElementById('userInput').value = '';
+  activeModels.forEach(id => {
+    const contentEl = document.getElementById(`content-${id}`);
+    if (contentEl) contentEl.innerHTML = '<p style="color:var(--text-secondary);">等待输入问题...</p>';
+    const statusEl = document.getElementById(`status-${id}`);
+    if (statusEl) statusEl.textContent = '⏳';
+  });
+}
+
+// ===== 设置面板 =====
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+
+function openSettings() {
+  const list = document.getElementById('modelChecklist');
+  list.innerHTML = availableModels.map(m => `
+    <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80" style="background:var(--bg);">
+      <input type="checkbox" ${activeModels.includes(m.id) ? 'checked' : ''}
+        onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
+      <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
+      <span class="flex-1 text-sm font-medium">${m.name}</span>
+      <span class="text-xs flex-shrink-0" style="color:var(--text-secondary);">${m.model}</span>
+    </label>
+  `).join('');
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function toggleModel(modelId, checked) {
+  if (checked) {
+    if (!activeModels.includes(modelId)) activeModels.push(modelId);
+  } else {
+    activeModels = activeModels.filter(id => id !== modelId);
+  }
+  saveActiveModels();
+  renderCards();
+}
+
+document.getElementById('settingsModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSettings();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeSettings();
+});
+
+// ===== 键盘快捷键 =====
+function setupKeyboardShortcut() {
+  document.getElementById('userInput').addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+}
+
+// ===== 启动 =====
+init();
+</script>
+</body>
+</html>
