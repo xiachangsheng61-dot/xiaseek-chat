@@ -60,10 +60,22 @@ const MODEL_REGISTRY = {
   }
 };
 
+// 检测 API Key 是否为占位符（未真实配置）
+function isValidKey(key) {
+  if (!key) return false;
+  const lower = key.toLowerCase();
+  if (lower.includes('your-')) return false;
+  if (lower === 'sk-' || lower.length < 10) return false;
+  return true;
+}
+
 // GET /api/models — 返回可用模型列表（不含密钥）
 app.get('/api/models', (req, res) => {
   const models = Object.values(MODEL_REGISTRY)
-    .filter(m => m.apiKey)
+    .filter(m => {
+      if (m.provider === 'ernie') return isValidKey(m.apiKey) && isValidKey(m.secretKey);
+      return isValidKey(m.apiKey);
+    })
     .map(({ id, name, provider, model, icon }) => ({ id, name, provider, model, icon }));
   res.json({ models });
 });
@@ -94,8 +106,8 @@ app.post('/api/chat/stream', async (req, res) => {
       sendSSE(res, 'error', { modelId, error: `未知模型: ${modelId}` });
       return;
     }
-    if (!config.apiKey) {
-      sendSSE(res, 'error', { modelId, error: `${config.name} 未配置API密钥` });
+    if (!config.apiKey || !isValidKey(config.apiKey)) {
+      sendSSE(res, 'error', { modelId, error: `${config.name} 未配置有效的API密钥` });
       return;
     }
 
@@ -250,7 +262,10 @@ async function streamErnie(res, config, message, history) {
 }
 
 app.listen(PORT, () => {
-  const configuredModels = Object.values(MODEL_REGISTRY).filter(m => m.apiKey).map(m => m.name);
+  const configuredModels = Object.values(MODEL_REGISTRY).filter(m => {
+    if (m.provider === 'ernie') return isValidKey(m.apiKey) && isValidKey(m.secretKey);
+    return isValidKey(m.apiKey);
+  }).map(m => m.name);
   console.log(`🚀 聚合对话API网关已启动: http://localhost:${PORT}`);
   console.log(`📋 已配置模型(${configuredModels.length}): ${configuredModels.join(', ') || '无'}`);
 });

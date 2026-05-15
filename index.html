@@ -574,7 +574,11 @@ function filterData(modId, data) {
 function renderCard(modId, item, idx) {
   const cfg = getModuleConfig(modId);
   const tags = item.tags || [];
-  const tagHtml = tags.slice(0,3).map(t=>`<span class="card-tag">${t}</span>`).join('');
+  const tagHtml = tags.slice(0,3).map(t=>`<span class="card-tag">${t}</span>`).join('') + `
+    <a href="/chat.html" class="nav-tab" style="background:var(--primary); color:#fff; text-decoration:none; margin-left:8px; white-space:nowrap;">
+      💬 聚合对话
+    </a>
+  `;
 
   if (cfg.hasCopy) {
     // Skill market card with copy
@@ -736,7 +740,11 @@ function renderNav() {
           ondragend="handleDragEnd(event)">
       <span class="drag-handle">⠿</span>${m.name}
     </span>
-  `).join('');
+  `).join('') + `
+    <a href="/chat.html" class="nav-tab" style="background:var(--primary); color:#fff; text-decoration:none; margin-left:8px; white-space:nowrap;">
+      聚合对话
+    </a>
+  `;
 }
 
 function switchModule(modId) {
@@ -848,7 +856,11 @@ function toggleTheme() {
 // ==================== MODAL ====================
 function openAddModal() {
   const sel = document.getElementById('modalModule');
-  sel.innerHTML = MODULES.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  sel.innerHTML = MODULES.map(m=>`<option value="${m.id}">${m.name}</option>`).join('') + `
+    <a href="/chat.html" class="nav-tab" style="background:var(--primary); color:#fff; text-decoration:none; margin-left:8px; white-space:nowrap;">
+      聚合对话
+    </a>
+  `;
   sel.value = activeModuleId;
   document.getElementById('modalTitle').textContent = '添加工具';
   document.getElementById('modalName').value = '';
