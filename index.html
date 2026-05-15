@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="wangzhanbiaozhi.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虾SeekAI导航 - AI工具一站配齐，省心不迷路</title>
+<style>
+:root {
+  --primary: #FF6B6B;
+  --primary-light: #FF8E8E;
+  --primary-dark: #E55A5A;
+  --bg: #F8F9FA;
+  --card-bg: #FFFFFF;
+  --text: #1A1A2E;
+  --text-secondary: #6B7280;
+  --border: #E5E7EB;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-hover: 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05);
+  --nav-bg: #FFFFFF;
+  --tag-bg: #F3F4F6;
+  --tag-text: #374151;
+  --radius: 16px;
+  --transition: 0.2s ease;
+}
+[data-theme="dark"] {
+  --bg: #121212;
+  --card-bg: #1E1E2E;
+  --text: #E0E0E0;
+  --text-secondary: #9CA3AF;
+  --border: #333;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-hover: 0 10px 25px rgba(0,0,0,0.5);
+  --nav-bg: #1A1A2E;
+  --tag-bg: #2A2A3E;
+  --tag-text: #D1D5DB;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* ===== TOP NAV ===== */
+.topnav {
+  position: fixed; top:0; left:0; right:0; z-index:1000;
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  padding: 0 24px;
+  display: flex; align-items: center;
+  height: 64px;
+  gap: 12px;
+  transition: background var(--transition), border var(--transition);
+}
+.logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 18px; font-weight: 800;
+  white-space: nowrap;
+  color: var(--primary);
+  user-select: none;
+}
+.logo-img { height: 28px; width: auto; vertical-align: middle; }
+.nav-tabs {
+  display: flex; align-items: center; gap: 4px;
+  flex: 1; overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.nav-tabs::-webkit-scrollbar { display:none; }
+.nav-tab {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  user-select: none;
+}
+.nav-tab:hover { background: var(--tag-bg); color: var(--text); }
+.nav-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.nav-tab.drag-over { border-color: var(--primary); border-style: dashed; }
+.nav-tab.dragging { opacity: 0.5; }
+.nav-right {
+  display: flex; align-items: center; gap: 8px;
+}
+.search-wrap {
+  position: relative;
+  display: flex; align-items: center;
+}
+.search-input {
+  width: 200px; height: 38px;
+  padding: 0 36px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 19px;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: all var(--transition);
+}
+.search-input:focus { width: 260px; border-color: var(--primary); }
+.search-icon {
+  position: absolute; right: 10px;
+  font-size: 16px; cursor: pointer;
+  background: none; border: none;
+}
+.theme-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.theme-btn:hover { border-color: var(--primary); }
+
+/* ===== MAIN CONTENT ===== */
+.main { margin-top: 64px; padding: 24px; max-width: 1400px; margin-left: auto; margin-right: auto; }
+.module-header {
+  position: relative; text-align: center; margin-bottom: 28px;
+  padding: 20px 0;
+  overflow: hidden;
+}
+.module-header::before,
+.module-header::after {
+  content: ''; position: absolute; top: 0; bottom: 0;
+  width: 180px;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  pointer-events: none;
+  z-index: 0;
+}
+.module-header::before {
+  left: 0;
+  background-image: url('left.png');
+  mask-image: linear-gradient(to right, black 0%, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 0%, black 60%, transparent 100%);
+}
+.module-header::after {
+  right: 0;
+  background-image: url('right.png');
+  mask-image: linear-gradient(to left, black 0%, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to left, black 0%, black 60%, transparent 100%);
+}
+.module-title {
+  font-size: 28px; font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative; z-index: 1;
+}
+.module-desc { color: var(--text-secondary); font-size: 14px; margin-top: 6px; position: relative; z-index: 1; }
+
+/* Category filter pills */
+.cat-filters {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; margin-bottom: 24px;
+}
+.cat-pill {
+  padding: 6px 16px; border-radius: 20px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border);
+  background: var(--card-bg); color: var(--text-secondary);
+  transition: all var(--transition);
+  user-select: none;
+}
+.cat-pill:hover { border-color: var(--primary); color: var(--primary); }
+.cat-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* Card Grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--primary);
+}
+.card-icon { font-size: 32px; margin-bottom: 10px; display:block; }
+.card-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.card-desc {
+  font-size: 13px; color: var(--text-secondary);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; line-height: 1.5;
+}
+.card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.card-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--tag-bg); color: var(--tag-text);
+}
+.card-tag.rank {
+  background: var(--primary); color: #fff; font-weight: 700;
+}
+.card-meta { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+.card-copy-btn {
+  margin-top: 10px;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  width: 100%;
+}
+.card-copy-btn:hover { background: var(--primary); color: #fff; }
+.card-copy-btn.copied { background: #10B981; border-color: #10B981; color: #fff; }
+.empty-state { text-align:center; padding:60px 20px; color:var(--text-secondary); }
+
+/* ===== FOOTER ===== */
+.footer {
+  text-align: center; padding: 24px;
+  color: var(--text-secondary); font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  display: none; position: fixed; inset:0; z-index:2000;
+  background: rgba(0,0,0,0.5);
+  align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card-bg); border-radius: var(--radius);
+  padding: 28px; width: 90%; max-width: 480px;
+  box-shadow: var(--shadow-hover);
+}
+.modal h3 { margin-bottom: 16px; font-size: 18px; }
+.modal label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; color: var(--text-secondary); }
+.modal input, .modal select, .modal textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 14px; background: var(--bg); color: var(--text);
+  outline: none; font-family: inherit;
+}
+.modal input:focus, .modal select:focus, .modal textarea:focus { border-color: var(--primary); }
+.modal textarea { resize: vertical; min-height: 80px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+.btn {
+  padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; border: none; transition: all var(--transition);
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+/* Add tool float btn */
+.add-float {
+  position: fixed; bottom: 28px; right: 28px; z-index: 999;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--primary); color: #fff; font-size: 28px;
+  border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(255,107,107,0.4);
+  transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center;
+}
+.add-float:hover { transform: scale(1.1); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1200px) { .card-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 768px) {
+  .card-grid { grid-template-columns: repeat(2, 1fr); }
+  .topnav { padding: 0 12px; gap: 8px; }
+  .nav-tab { font-size: 11px; padding: 5px 10px; }
+  .search-input { width: 120px; }
+  .search-input:focus { width: 160px; }
+  .main { padding: 16px; }
+  .logo { font-size: 15px; }
+}
+@media (max-width: 480px) {
+  .card-grid { grid-template-columns: 1fr; }
+  .nav-right { gap: 4px; }
+  .search-input { width: 100px; font-size:12px; }
+  .search-input:focus { width: 130px; }
+}
+
+/* Toast */
+.toast {
+  position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+  background: #10B981; color: #fff; padding: 10px 24px; border-radius: 20px;
+  font-size: 14px; font-weight: 600; z-index: 3000;
+  opacity: 0; transition: opacity 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Sort handle */
+.nav-tab .drag-handle { margin-right: 4px; font-size: 10px; opacity: 0.4; }
+</style>
+</head>
+<body data-theme="light">
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">添加工具</h3>
+    <label>工具名称 *</label>
+    <input type="text" id="modalName" placeholder="例如：ChatGPT">
+    <label>简介 *</label>
+    <input type="text" id="modalDesc" placeholder="简短描述">
+    <label>图标 (Emoji)</label>
+    <input type="text" id="modalIcon" placeholder="💬">
+    <label>网址 *</label>
+    <input type="text" id="modalUrl" placeholder="https://...">
+    <label>分类标签 (逗号分隔)</label>
+    <input type="text" id="modalTags" placeholder="大模型,免费">
+    <label>模块归属</label>
+    <select id="modalModule"></select>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="confirmAddTool()">确认添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="topnav" id="topnav">
+  <div class="logo">
+    <img class="logo-img" src="wangzhanbiaozhi.png" alt="虾SeekAI导航">虾SeekAI导航
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+  <div class="nav-right">
+    <div class="search-wrap">
+      <input type="text" class="search-input" id="searchInput" placeholder="搜索全部模块...">
+      <button class="search-icon" onclick="doSearch()">🔍</button>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="main" id="mainContent"></main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p>虾SeekAI导航 · AI工具一站配齐，省心不迷路</p>
+  <p style="margin-top:4px;">© 2025 XiaSeek.com | 本站内容仅供学习参考</p>
+</footer>
+
+<!-- ADD FLOAT BTN -->
+<button class="add-float" onclick="openAddModal()" title="添加工具">+</button>
+
+<script>
+// ==================== DATA ====================
+const MODULES = [
+  { id: 'ai', name: '当前的AI', desc: '主流AI大模型汇总，覆盖国内外旗舰模型', filterBy: 'tags', searchFields: ['name','desc','tags'] },
+  { id: 'env', name: '所需环境', desc: 'AI本地部署工具、运行环境、在线平台', filterBy: 'difficulty', searchFields: ['name','desc','system','usage'] },
+  { id: 'plugin', name: '插件市场', desc: '浏览器AI插件、编辑器插件、办公提效工具', filterBy: 'platform', searchFields: ['name','desc','platform','feature'] },
+  { id: 'skill', name: 'Skill市场', desc: 'AI提示词模板、指令集、工作流', filterBy: 'scenario', searchFields: ['name','desc','scenario','prompt'], hasCopy: true },
+  { id: 'rank', name: '榜单排名', desc: 'AI工具综合排行榜，多维度评分对比', filterBy: 'type', searchFields: ['name','desc','type','highlight'] },
+  { id: 'proxy', name: '中转站', desc: 'AI API中转服务、稳定访问方案', filterBy: 'models', searchFields: ['name','desc','models','price'] },
+  { id: 'token', name: 'Token源头', desc: 'API Key购买渠道、官方与合规途径', filterBy: 'type', searchFields: ['name','desc','type','price'] },
+  { id: 'hardware', name: '硬件榜单', desc: 'AI显卡、主机、笔记本推荐', filterBy: 'vram', searchFields: ['name','desc','model','vram'] },
+];
+
+// ===== 模块1：当前的AI =====
+const dataAI = [
+  { name:'ChatGPT', desc:'OpenAI旗舰AI助手，GPT-5.5系列，周活9亿用户，全球最大AI应用', icon:'💬', tags:['大模型','多模态','付费'], url:'https://chat.openai.com' },
+  { name:'Claude', desc:'Anthropic出品，编程能力顶尖，安全对齐最严格，Claude Code年收$25亿', icon:'🧠', tags:['大模型','编程','付费'], url:'https://claude.ai' },
+  { name:'Gemini', desc:'Google DeepMind旗舰，原生多模态，1M上下文，ELO排名第三', icon:'🌌', tags:['大模型','多模态','免费'], url:'https://gemini.google.com' },
+  { name:'DeepSeek', desc:'国产推理之王，V4极致降本，开源权重，API成本仅GPT-5的1/3', icon:'🐋', tags:['大模型','推理','开源'], url:'https://chat.deepseek.com' },
+  { name:'Kimi', desc:'月之暗面出品，Agent能力业界第一，工具调用准确率93%，长文处理出色', icon:'🌙', tags:['大模型','Agent','长文本'], url:'https://kimi.moonshot.cn' },
+  { name:'通义千问', desc:'阿里出品，矩阵最全的开源体系，覆盖119种语言，Alibaba生态深度集成', icon:'☁️', tags:['大模型','开源','多模态'], url:'https://tongyi.aliyun.com' },
+  { name:'豆包', desc:'字节跳动出品，MAU 1.47亿，国内C端用户最广，拟人化语音交互', icon:'🫘', tags:['大模型','语音','免费'], url:'https://www.doubao.com' },
+  { name:'文心一言', desc:'百度出品，知识增强大模型，搜索生态深厚，ERNIE 4.5系列', icon:'📘', tags:['大模型','知识增强','免费'], url:'https://yiyan.baidu.com' },
+  { name:'腾讯混元', desc:'腾讯出品，游戏+社交深度集成，姚顺雨掌舵，Hy3全新架构', icon:'🎮', tags:['大模型','多模态','社交'], url:'https://hunyuan.tencent.com' },
+  { name:'Grok', desc:'xAI出品，独家接入X(Twitter)实时数据，无审查风格，Colossus超算驱动', icon:'⚡', tags:['大模型','实时数据','付费'], url:'https://grok.x.ai' },
+  { name:'Llama 4', desc:'Meta开源旗舰，累计下载超10亿次，Scout版1000万token上下文', icon:'🦙', tags:['大模型','开源','长上下文'], url:'https://llama.meta.com' },
+  { name:'GLM-5', desc:'智谱AI旗舰，"中国大模型第一股"，744B参数，完全在华为昇腾芯片上训练', icon:'🏛️', tags:['大模型','国产芯片','学术'], url:'https://chatglm.cn' },
+  { name:'Mistral Large', desc:'欧洲AI主权代表，675B MoE架构，Apache 2.0开源', icon:'🇪🇺', tags:['大模型','开源','欧洲'], url:'https://mistral.ai' },
+  { name:'MiniMax M2.5', desc:'角色扮演+创意写作专项，代码能力亦达顶尖水平', icon:'🎭', tags:['大模型','创意','写作'], url:'https://www.minimaxi.com' },
+  { name:'Perplexity', desc:'AI搜索引擎标杆，引用来源透明，全球排名第五', icon:'🔎', tags:['AI搜索','引用','免费'], url:'https://www.perplexity.ai' },
+  { name:'讯飞星火', desc:'科大讯飞出品，教育+办公场景深度优化', icon:'🎤', tags:['大模型','教育','办公'], url:'https://xinghuo.xfyun.cn' },
+  { name:'Cursor', desc:'AI原生IDE，估值293亿美元，编程赛道增长最快', icon:'🖱️', tags:['编程','IDE','Agent'], url:'https://cursor.sh' },
+  { name:'GitHub Copilot', desc:'微软生态深度集成，开发者最广泛使用的AI编程助手', icon:'🤖', tags:['编程','微软','付费'], url:'https://github.com/features/copilot' },
+];
+
+// ===== 模块2：所需环境 =====
+const dataEnv = [
+  { name:'Ollama', desc:'轻量级命令行LLM部署工具，一键拉取运行DeepSeek/Llama等开源模型', icon:'🦙', system:'Windows/Mac/Linux', difficulty:'简单', usage:'LLM本地运行', url:'https://ollama.com' },
+  { name:'LM Studio', desc:'图形化LLM管理工具，支持多模型切换，CPU/GPU自动适配', icon:'🖥️', system:'Windows/Mac/Linux', difficulty:'简单', usage:'LLM本地运行', url:'https://lmstudio.ai' },
+  { name:'ComfyUI', desc:'节点式AI图像生成工作流，支持SDXL/Flux/DeepFloyd，灵活度最高', icon:'🎨', system:'Windows/Mac/Linux', difficulty:'中等', usage:'AI图像生成', url:'https://github.com/comfyanonymous/ComfyUI' },
+  { name:'Stable Diffusion WebUI', desc:'经典AI图像生成界面，LoRA训练、ControlNet等功能完备', icon:'🖼️', system:'Windows/Mac/Linux', difficulty:'中等', usage:'AI图像生成', url:'https://github.com/AUTOMATIC1111/stable-diffusion-webui' },
+  { name:'AIStarter', desc:'2025年新兴一键部署平台，200+应用市场，自动检测GPU/CPU模式', icon:'🚀', system:'Windows/Mac/Linux', difficulty:'简单', usage:'AI工具一键安装', url:'https://www.aihubpro.cn' },
+  { name:'Text Generation WebUI', desc:'基于Web的LLM管理界面，支持多模型并行管理+API访问', icon:'🌐', system:'跨平台/Python', difficulty:'中等', usage:'LLM管理面板', url:'https://github.com/oobabooga/text-generation-webui' },
+  { name:'Dify', desc:'开源LLM应用开发平台，可视化编排AI工作流，支持RAG管道', icon:'🔧', system:'Web/Docker', difficulty:'中等', usage:'AI应用搭建', url:'https://dify.ai' },
+  { name:'LangChain', desc:'LLM应用开发框架，链式调用+Agent+工具集成，生态最丰富', icon:'⛓️', system:'Python/JS', difficulty:'中等', usage:'AI开发框架', url:'https://www.langchain.com' },
+  { name:'Pinokio', desc:'一键安装各类AI工具的浏览器，自动处理依赖和环境配置', icon:'📦', system:'Windows/Mac/Linux', difficulty:'简单', usage:'AI工具浏览器', url:'https://pinokio.computer' },
+  { name:'Docker AI Stack', desc:'Ollama+Open WebUI+ComfyUI Docker全栈方案，compose一键启动', icon:'🐳', system:'Docker', difficulty:'中等', usage:'全栈AI环境', url:'https://github.com/felipeelias/local-ai' },
+];
+
+// ===== 模块3：插件市场 =====
+const dataPlugin = [
+  { name:'Monica', desc:'300万+用户，4.9★，全能AI侧边栏，多模型支持+PDF对话+网页摘要+翻译', icon:'🌟', platform:'Chrome/Edge', feature:'AI侧边栏助手', url:'https://monica.im' },
+  { name:'Sider', desc:'页面级AI助手，支持GPT-5/Claude/DeepSeek等，多模型并排对比', icon:'📋', platform:'Chrome/Edge', feature:'AI页面助手', url:'https://sider.ai' },
+  { name:'ChatHub', desc:'多模型并排对比工具，同一窗口向多AI提问，开发者群体口碑好', icon:'🔄', platform:'Chrome/Edge', feature:'多模型对比', url:'https://chathub.gg' },
+  { name:'QuillBot', desc:'400万+用户，高级AI改写+语法检查+语气调整，Google年度推荐', icon:'✍️', platform:'Chrome/Edge/Word', feature:'AI写作改写', url:'https://quillbot.com' },
+  { name:'Grammarly', desc:'400万+用户，经典AI写作助手，拼写/语法/语气全方位优化', icon:'✅', platform:'Chrome/Edge/桌面', feature:'AI语法检查', url:'https://grammarly.com' },
+  { name:'HARPA AI', desc:'AI+网页自动化，监控价格变动/页面更新，支持自定义自动化工作流', icon:'⚙️', platform:'Chrome/Edge', feature:'AI网页自动化', url:'https://harpa.ai' },
+  { name:'Fireflies.ai', desc:'自动录音+转录+总结线上会议，支持Zoom/Teams/Meet等主流平台', icon:'🎙️', platform:'Chrome/Zoom/Teams', feature:'AI会议助手', url:'https://fireflies.ai' },
+  { name:'DeepL', desc:'400万+用户，全球最精准的AI翻译插件之一，支持30+语言', icon:'🌍', platform:'Chrome/Edge/桌面', feature:'AI翻译', url:'https://www.deepl.com' },
+  { name:'WebChatGPT', desc:'100万+用户，在ChatGPT中集成实时网络搜索结果', icon:'🔍', platform:'Chrome/Edge', feature:'ChatGPT联网', url:'https://www.webchatgpt.app' },
+  { name:'Thunderbit', desc:'4.9★，两步完成网页数据提取，无需代码即可抓取结构化数据', icon:'⚡', platform:'Chrome/Edge', feature:'网页数据抓取', url:'https://thunderbit.com' },
+  { name:'Compose AI', desc:'30万+用户，自动补全+快速改写，营销和招聘领域高效撰写', icon:'💡', platform:'Chrome/Edge', feature:'AI自动补全', url:'https://compose.ai' },
+  { name:'ChatGPT Writer', desc:'60万+用户，专注邮件和消息快速撰写，销售/客服团队喜爱', icon:'📧', platform:'Chrome/Edge', feature:'AI邮件撰写', url:'https://chatgptwriter.ai' },
+];
+
+// ===== 模块4：Skill市场 =====
+const dataSkill = [
+  { name:'五要素提示词模板', desc:'最通用的提示词结构：角色+上下文+任务+约束+输出格式', icon:'📐', scenario:'通用', prompt:'# 角色\n你是一位[专业角色]\n\n# 背景\n[当前场景和上下文]\n\n# 任务\n[要完成的具体任务]\n\n# 约束\n1. [限制条件1]\n2. [限制条件2]\n\n# 输出格式\n[期望的输出结构]' },
+  { name:'逐步推理模板', desc:'引导AI一步步思考复杂逻辑、数学证明、规划问题', icon:'🧮', scenario:'推理/数学', prompt:'请使用逐步推理(Chain of Thought)的方式解决以下问题：\n\n问题：[具体问题描述]\n\n要求：\n1. 先列出已知条件\n2. 分解为子步骤\n3. 每一步说明推理依据\n4. 给出最终答案并验证' },
+  { name:'代码审查模板', desc:'基于Google Code Review标准的代码审查提示词', icon:'🔍', scenario:'编程', prompt:'请审查以下代码，按以下维度逐一评估：\n\n1. **正确性**：逻辑是否正确，边界情况是否处理\n2. **可读性**：命名、注释、结构是否清晰\n3. **性能**：是否存在性能瓶颈\n4. **安全性**：是否有安全漏洞(OWASP Top 10)\n5. **可维护性**：是否符合SOLID原则\n\n代码：\n```\n[粘贴代码]\n```\n\n请给出具体改进建议，并按严重程度排序。' },
+  { name:'项目管理拆解模板', desc:'将复杂需求拆解为可执行的分步任务计划', icon:'📋', scenario:'项目管理', prompt:'你是一位资深技术项目经理。请将以下需求拆解为可执行的任务计划：\n\n需求：[描述]\n\n拆解要求：\n- 每个任务不超过1天工作量\n- 标注依赖关系和优先级(P0-P3)\n- 预估每个任务工时\n- 识别风险点和阻塞项\n\n输出格式：Markdown表格 + Mermaid甘特图' },
+  { name:'UI设计评审模板', desc:'从设计品质、可用性、一致性维度评审界面', icon:'🎨', scenario:'设计', prompt:'作为资深UI/UX设计师，请评审以下界面：\n\n描述/截图：[界面描述]\n\n评审维度：\n1. **视觉层级**：信息架构是否清晰\n2. **一致性**：间距、字体、颜色是否统一\n3. **可用性**：是否符合用户心理模型\n4. **差异化**：是否避免了"AI生成感"\n5. **无障碍**：对比度、可点击区域是否符合WCAG\n\n给出3-5条最优先的改进建议。' },
+  { name:'API设计模板', desc:'遵循RESTful最佳实践设计API接口', icon:'🔌', scenario:'编程', prompt:'请为以下业务场景设计RESTful API：\n\n场景：[描述]\n\n要求：\n1. 遵循RESTful约定(资源命名用复数名词)\n2. 包含标准的CRUD操作\n3. 定义请求/响应数据结构(JSON Schema)\n4. 考虑分页、过滤、排序\n5. 设计错误响应格式\n6. 建议合适的HTTP状态码\n\n输出：API端点列表 + 请求/响应示例' },
+  { name:'文案润色模板', desc:'多语调改写，将直白文字转为专业表达', icon:'✨', scenario:'写作', prompt:'请对以下文字进行润色，提供3个版本：\n\n原文：[粘贴文字]\n\n版本1 - 正式专业版：适合商务场合\n版本2 - 活泼轻快版：适合社交媒体\n版本3 - 精简有力版：适合标题/摘要\n\n每个版本标注：字数、语调特征、适用场景' },
+  { name:'学习路径规划模板', desc:'分层次、分步骤的AI引导式学习设计', icon:'📚', scenario:'教育', prompt:'你是一位课程设计专家。为以下主题设计学习路径：\n\n主题：[学习主题]\n学员水平：[初级/中级/高级]\n学习周期：[周数]\n\n设计包含：\n1. 学习目标(按Bloom分类法)\n2. 每周学习内容与练习\n3. 关键资源推荐(书籍/课程/项目)\n4. 阶段检查点和评估方式\n5. 常见误区提醒' },
+];
+
+// ===== 模块5：榜单排名 =====
+const dataRank = [
+  { rank:1, name:'ChatGPT', rating:9.5, type:'AI对话', highlight:'周活9亿，全球第一大AI应用，a16z百强榜首', icon:'💬', url:'https://chat.openai.com' },
+  { rank:2, name:'Claude', rating:9.3, type:'编程/安全', highlight:'编程能力业界第一，Claude Code年收$25亿，LMArena Elo最高', icon:'🧠', url:'https://claude.ai' },
+  { rank:3, name:'Gemini', rating:9.1, type:'多模态', highlight:'原生多模态，XIX.AI综合评分7.6位列第一，1M上下文', icon:'🌌', url:'https://gemini.google.com' },
+  { rank:4, name:'DeepSeek', rating:8.9, type:'推理/开源', highlight:'中国AI首次进入全球前四，推理成本仅为GPT-5的1/3', icon:'🐋', url:'https://chat.deepseek.com' },
+  { rank:5, name:'Kimi', rating:8.7, type:'Agent/长文', highlight:'Agent工具调用准确率93%业界最高，K2.6支持300子Agent并行', icon:'🌙', url:'https://kimi.moonshot.cn' },
+  { rank:6, name:'通义千问', rating:8.5, type:'开源/多模态', highlight:'矩阵最全的开源体系，Apache 2.0商用友好，覆盖119种语言', icon:'☁️', url:'https://tongyi.aliyun.com' },
+  { rank:7, name:'Perplexity', rating:8.4, type:'AI搜索', highlight:'AI搜索标杆，引用来源透明，全球排名第五', icon:'🔎', url:'https://www.perplexity.ai' },
+  { rank:8, name:'豆包', rating:8.3, type:'对话/语音', highlight:'MAU 1.47亿，国内C端最广，端到端延迟320ms', icon:'🫘', url:'https://www.doubao.com' },
+  { rank:9, name:'Grok', rating:8.2, type:'实时/幽默', highlight:'独家X平台实时数据，Colossus超算20万+GPU集群', icon:'⚡', url:'https://grok.x.ai' },
+  { rank:10, name:'GLM-5', rating:8.0, type:'国产芯片', highlight:'完全华为昇腾训练，744B参数，"中国大模型第一股"', icon:'🏛️', url:'https://chatglm.cn' },
+];
+
+// ===== 模块6：中转站 =====
+const dataProxy = [
+  { name:'CloseAI', desc:'国内第一家商用中转平台，100%官转，企业级灾备架构，支持开票报销', icon:'🏢', models:'OpenAI/Claude/Gemini/Azure', latency:'低', stability:'极高', price:'¥按量/可开票', url:'https://closeai-asia.com' },
+  { name:'Cloudflare AI Gateway', desc:'全球CDN巨头AI网关，统一计费+密钥安全存储+DLP防护+自动协议转换', icon:'☁️', models:'350+模型全覆盖', latency:'极低', stability:'极高', price:'$按量/自带Key', url:'https://developers.cloudflare.com/ai-gateway' },
+  { name:'ngrok AI Gateway', desc:'统一AI端点+自动故障转移+API Key轮换+自定义模型选择策略', icon:'🔀', models:'OpenAI/Claude/DeepSeek等', latency:'低', stability:'高', price:'按量', url:'https://ngrok.com' },
+  { name:'One API', desc:'免费开源API聚合分发系统，多厂商+令牌管理+负载均衡+用户管理', icon:'🔗', models:'OpenAI/Claude/文心/通义等', latency:'取决于后端', stability:'自建可控', price:'免费开源', url:'https://github.com/songquanpeng/one-api' },
+  { name:'AI-PROXY', desc:'Go实现的开源代理，URL替换转发，管理后台动态配置，一键部署', icon:'🔄', models:'OpenAI/Azure/Claude/Gemini', latency:'低', stability:'中', price:'免费开源', url:'https://github.com/2930134478/AI-PROXY' },
+  { name:'AIClient-2-API', desc:'Node.js+Docker方案，将客户端免费大模型转为OpenAI兼容接口', icon:'🐳', models:'Gemini CLI/Qwen Code等', latency:'中', stability:'中', price:'免费/利用客户端', url:'https://hub.docker.com/r/justlikemaki/aiclient-2-api' },
+  { name:'Proxify', desc:'开源轻量AI反向代理，Go实现仅需0.5GB内存，流式优化+SSE心跳', icon:'⚡', models:'多厂商路由', latency:'低', stability:'中', price:'免费开源', url:'https://github.com/clicksun/proxify' },
+  { name:'NyaProxy', desc:'Python动态Token轮换，5种负载均衡策略，可视化仪表盘+配置UI', icon:'🐍', models:'OpenAI/Claude等', latency:'低', stability:'中', price:'免费开源', url:'https://pypi.org/project/nya-proxy' },
+];
+
+// ===== 模块7：Token源头 =====
+const dataToken = [
+  { name:'Anthropic官方', desc:'Claude API官方渠道，需要海外手机号+国际信用卡，风控极严', icon:'🔵', type:'官方', price:'Opus $15/$75 每百万token', security:'最高', url:'https://console.anthropic.com' },
+  { name:'OpenAI官方', desc:'GPT API官方渠道，国际信用卡支付，国内卡大概率被拒', icon:'🟢', type:'官方', price:'GPT-5.2 $1.75/$14 每百万token', security:'最高', url:'https://platform.openai.com' },
+  { name:'Google AI Studio', desc:'Gemini API免费额度慷慨，Google账号直接使用，无需信用卡', icon:'🌌', type:'官方免费', price:'Flash-Lite $0.10/$0.40，有免费层', security:'最高', url:'https://aistudio.google.com' },
+  { name:'AnyRouter', desc:'注册送$100体验金，支持支付宝/微信，需实名认证', icon:'🔀', type:'国内中转', price:'¥按量，汇率1:1', security:'中高', url:'https://anyrouter.top' },
+  { name:'PoloAPI', desc:'支付宝/微信支付，人民币1:1结算，多模型聚合', icon:'🎯', type:'国内中转', price:'¥按量', security:'中高', url:'https://poloapi.com' },
+  { name:'AIHubMix', desc:'聚合OpenAI+Claude，速度快，无封号风险，国内友好', icon:'🔗', type:'国内中转', price:'¥按量', security:'中', url:'https://aihubmix.com' },
+  { name:'GAC Code', desc:'专为Claude Code设计，月费299元，比官方Max便宜近一半', icon:'💻', type:'专用中转', price:'¥299/月', security:'中', url:'https://gac-code.com' },
+  { name:'UIUIAPI', desc:'模型齐全含最新Claude 4.5 Sonnet，支持国内支付', icon:'🛒', type:'国内中转', price:'¥按量', security:'中', url:'https://uiuiapi.com' },
+];
+
+// ===== 模块8：硬件榜单 =====
+const dataHardware = [
+  { name:'RTX 5090', desc:'消费级AI之王，32GB GDDR7，Qwen2.5 7B推理5841 tok/s，比A100快2.6倍', icon:'🔥', model:'NVIDIA Blackwell', vram:'32GB GDDR7', price:'¥18,000-27,000', recommend:'★★★★★', url:'https://www.nvidia.com' },
+  { name:'RTX 4090', desc:'上代旗舰，24GB显存，已验证最稳定平台，二手性价比极高', icon:'💪', model:'NVIDIA Ada', vram:'24GB GDDR6X', price:'¥11,000-14,000', recommend:'★★★★☆', url:'https://www.nvidia.com' },
+  { name:'RTX 5080', desc:'32GB大显存，Blackwell架构，125.4 TFLOPS FP16', icon:'⚡', model:'NVIDIA Blackwell', vram:'32GB', price:'¥18,999', recommend:'★★★★☆', url:'https://www.nvidia.com' },
+  { name:'RTX A6000 Ada', desc:'专业工作站卡，48GB ECC显存，企业级稳定性，适合7B-13B微调', icon:'🖥️', model:'NVIDIA Ada Pro', vram:'48GB GDDR6', price:'$4,000-5,500', recommend:'★★★★☆', url:'https://www.nvidia.com' },
+  { name:'RTX PRO 6000', desc:'Blackwell专业卡，96GB显存，单卡可跑70B Q4模型无需量化到极限', icon:'🏆', model:'NVIDIA Blackwell Pro', vram:'96GB GDDR7', price:'$8,000+', recommend:'★★★★★', url:'https://www.nvidia.com' },
+  { name:'RTX PRO 5000', desc:'72GB GDDR7，桌面Agent AI入门之选，Blackwell架构全面上市', icon:'💼', model:'NVIDIA Blackwell Pro', vram:'72GB GDDR7', price:'¥30,000-40,000', recommend:'★★★★☆', url:'https://www.nvidia.com' },
+  { name:'H200', desc:'141GB HBM3e，单卡部署70B全精度，吞吐量比A100提升2.3倍', icon:'🚀', model:'NVIDIA Hopper', vram:'141GB HBM3e', price:'$40,000-55,000', recommend:'★★★★★', url:'https://www.nvidia.com' },
+  { name:'H100', desc:'80GB HBM3，企业级推理标配，3.35 TB/s带宽', icon:'💎', model:'NVIDIA Hopper', vram:'80GB HBM3', price:'$22,000-30,000', recommend:'★★★★☆', url:'https://www.nvidia.com' },
+  { name:'A100', desc:'80GB HBM2e，二手性价比之王$6,000起，NVLink+MIG企业功能齐全', icon:'💰', model:'NVIDIA Ampere', vram:'80GB HBM2e', price:'$6,000-15,000(二手)', recommend:'★★★★☆', url:'https://www.nvidia.com' },
+  { name:'B200', desc:'192GB HBM3e，Blackwell旗舰，2,250 TFLOPS FP16，产能已售罄', icon:'👑', model:'NVIDIA Blackwell', vram:'192GB HBM3e', price:'$30,000-40,000', recommend:'★★★★★', url:'https://www.nvidia.com' },
+  { name:'AMD MI300X', desc:'192GB HBM3，价格仅为H100的65%，单卡完整70B，ROCm生态日趋成熟', icon:'🔴', model:'AMD Instinct', vram:'192GB HBM3', price:'$15,000-20,000', recommend:'★★★★☆', url:'https://www.amd.com' },
+  { name:'Apple M3 Ultra', desc:'512GB统一内存，819GB/s带宽，静音低功耗，无CUDA但推理场景出色', icon:'🍎', model:'Apple Silicon', vram:'512GB统一内存', price:'$6,999+', recommend:'★★★☆☆', url:'https://www.apple.com' },
+];
+
+// ==================== STATE ====================
+const STORAGE_KEY_MODULES = 'xiaseek_module_order';
+const STORAGE_KEY_THEME = 'xiaseek_theme';
+const STORAGE_KEY_TOOLS = 'xiaseek_user_tools';
+
+let moduleOrder = JSON.parse(localStorage.getItem(STORAGE_KEY_MODULES)) || MODULES.map(m=>m.id);
+let activeModuleId = moduleOrder[0];
+let activeCatFilter = '全部';
+let searchQuery = '';
+let userTools = JSON.parse(localStorage.getItem(STORAGE_KEY_TOOLS)) || {};
+
+// Ensure all module IDs exist in userTools
+MODULES.forEach(m => { if (!userTools[m.id]) userTools[m.id] = []; });
+
+function getModuleData(modId) {
+  const maps = { ai:dataAI, env:dataEnv, plugin:dataPlugin, skill:dataSkill, rank:dataRank, proxy:dataProxy, token:dataToken, hardware:dataHardware };
+  const base = maps[modId] || [];
+  const extra = userTools[modId] || [];
+  return [...base, ...extra];
+}
+
+function getModuleConfig(modId) {
+  return MODULES.find(m=>m.id===modId) || MODULES[0];
+}
+
+// ==================== RENDER ====================
+function getOrderedModules() {
+  return moduleOrder.map(id => MODULES.find(m=>m.id===id)).filter(Boolean);
+}
+
+function getCatOptions(modId, data) {
+  const cfg = getModuleConfig(modId);
+  const field = cfg.filterBy;
+  if (!field) return [];
+  const vals = new Set();
+  data.forEach(item => {
+    const v = item[field];
+    if (Array.isArray(v)) v.forEach(t=>vals.add(t));
+    else if (v) vals.add(v);
+  });
+  return ['全部', ...Array.from(vals)];
+}
+
+function filterData(modId, data) {
+  const cfg = getModuleConfig(modId);
+  let filtered = data;
+
+  // Category filter
+  if (activeCatFilter !== '全部') {
+    const field = cfg.filterBy;
+    filtered = filtered.filter(item => {
+      const v = item[field];
+      if (Array.isArray(v)) return v.includes(activeCatFilter);
+      return v === activeCatFilter;
+    });
+  }
+
+  // Search filter
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    const fields = cfg.searchFields || ['name','desc'];
+    // Also search in tags
+    filtered = filtered.filter(item => {
+      return fields.some(f => {
+        const v = item[f];
+        if (Array.isArray(v)) return v.some(t => String(t).toLowerCase().includes(q));
+        return v && String(v).toLowerCase().includes(q);
+      });
+    });
+  }
+
+  return filtered;
+}
+
+function renderCard(modId, item, idx) {
+  const cfg = getModuleConfig(modId);
+  const tags = item.tags || [];
+  const tagHtml = tags.slice(0,3).map(t=>`<span class="card-tag">${t}</span>`).join('');
+
+  if (cfg.hasCopy) {
+    // Skill market card with copy
+    const shortPrompt = item.prompt ? item.prompt.substring(0,80)+'...' : '';
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="event.stopPropagation();">
+        <span class="card-icon">${item.icon||'🔧'}</span>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;font-family:monospace;background:var(--tag-bg);padding:4px 8px;border-radius:6px;">${escapeHtml(shortPrompt)}</div>
+        <div class="card-tags">${tagHtml}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">场景：${item.scenario||''}</div>
+        <button class="card-copy-btn" data-prompt="${escapeHtml(item.prompt||'')}" onclick="copyPrompt(event, this)">📋 一键复制</button>
+      </div>`;
+  }
+
+  if (modId === 'rank') {
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:28px;font-weight:900;color:var(--primary);">#${item.rank}</span>
+          <span class="card-icon" style="margin:0;">${item.icon||'🔧'}</span>
+        </div>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.highlight||item.desc}</div>
+        <div class="card-tags">
+          <span class="card-tag rank">⭐ ${item.rating}</span>
+          ${tagHtml}
+        </div>
+        <div class="card-meta"><span>类型：${item.type||''}</span></div>
+      </div>`;
+  }
+
+  if (modId === 'env') {
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+        <span class="card-icon">${item.icon||'🔧'}</span>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div class="card-tags">${tagHtml}</div>
+        <div class="card-meta">
+          <span>🖥️ ${item.system||''}</span>
+          <span>📊 ${item.difficulty||''}</span>
+        </div>
+      </div>`;
+  }
+
+  if (modId === 'plugin') {
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+        <span class="card-icon">${item.icon||'🔧'}</span>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div class="card-tags">${tagHtml}</div>
+        <div class="card-meta">
+          <span>📌 ${item.platform||''}</span>
+          <span>🎯 ${item.feature||''}</span>
+        </div>
+      </div>`;
+  }
+
+  if (modId === 'proxy') {
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+        <span class="card-icon">${item.icon||'🔧'}</span>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div class="card-tags">${tagHtml}</div>
+        <div class="card-meta">
+          <span>🔄 ${item.models||''}</span>
+          <span>⚡ ${item.latency||''}</span>
+          <span>🛡️ ${item.stability||''}</span>
+        </div>
+      </div>`;
+  }
+
+  if (modId === 'token') {
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+        <span class="card-icon">${item.icon||'🔧'}</span>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div class="card-tags">${tagHtml}</div>
+        <div class="card-meta">
+          <span>💰 ${item.price||''}</span>
+          <span>🔒 安全：${item.security||''}</span>
+        </div>
+      </div>`;
+  }
+
+  if (modId === 'hardware') {
+    return `
+      <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+        <span class="card-icon">${item.icon||'🔧'}</span>
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div class="card-tags">${tagHtml}</div>
+        <div class="card-meta">
+          <span>💾 ${item.vram||''}</span>
+          <span>💵 ${item.price||''}</span>
+          <span>${item.recommend||''}</span>
+        </div>
+      </div>`;
+  }
+
+  // Default card (ai, etc.)
+  return `
+    <div class="card" data-url="${item.url||''}" data-name="${item.name}" onclick="openCardLink(event, '${item.url||''}')">
+      <span class="card-icon">${item.icon||'🔧'}</span>
+      <div class="card-name">${item.name}</div>
+      <div class="card-desc">${item.desc}</div>
+      <div class="card-tags">${tagHtml}</div>
+    </div>`;
+}
+
+function renderModule(modId) {
+  const cfg = getModuleConfig(modId);
+  const data = getModuleData(modId);
+  const filtered = filterData(modId, data);
+  const cats = getCatOptions(modId, data);
+
+  let catHtml = '';
+  if (cats.length > 1) {
+    catHtml = `<div class="cat-filters">${cats.map(c =>
+      `<span class="cat-pill${c===activeCatFilter?' active':''}" onclick="setCatFilter('${escapeHtml(c)}')">${c}</span>`
+    ).join('')}</div>`;
+  }
+
+  const cardsHtml = filtered.length > 0
+    ? `<div class="card-grid">${filtered.map((item,i)=>renderCard(modId,item,i)).join('')}</div>`
+    : `<div class="empty-state">
+        <div style="font-size:48px;margin-bottom:12px;">🔍</div>
+        <p>没有找到匹配的内容</p>
+        <p style="font-size:13px;margin-top:4px;">试试更换搜索词或分类筛选，或点击右下角 + 添加</p>
+      </div>`;
+
+  return `
+    <div class="module-header">
+      <div class="module-title">${cfg.name}</div>
+      <div class="module-desc">${cfg.desc} · 共 ${filtered.length} 个</div>
+    </div>
+    ${catHtml}
+    ${cardsHtml}`;
+}
+
+function renderNav() {
+  const ordered = getOrderedModules();
+  const container = document.getElementById('navTabs');
+  container.innerHTML = ordered.map((m,i) => `
+    <span class="nav-tab${m.id===activeModuleId?' active':''}"
+          draggable="true"
+          data-module-id="${m.id}"
+          data-index="${i}"
+          onclick="switchModule('${m.id}')"
+          ondragstart="handleDragStart(event)"
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDrop(event)"
+          ondragend="handleDragEnd(event)">
+      <span class="drag-handle">⠿</span>${m.name}
+    </span>
+  `).join('');
+}
+
+function switchModule(modId) {
+  activeModuleId = modId;
+  activeCatFilter = '全部';
+  searchQuery = document.getElementById('searchInput').value;
+  renderNav();
+  document.getElementById('mainContent').innerHTML = renderModule(modId);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function setCatFilter(cat) {
+  activeCatFilter = cat;
+  document.getElementById('mainContent').innerHTML = renderModule(activeModuleId);
+}
+
+function doSearch() {
+  searchQuery = document.getElementById('searchInput').value;
+  activeCatFilter = '全部';
+  // Global search: search across all modules and switch to first match
+  if (searchQuery.trim()) {
+    let foundMod = null;
+    for (const modId of moduleOrder) {
+      const data = getModuleData(modId);
+      const filtered = filterData(modId, data);
+      if (filtered.length > 0) {
+        foundMod = modId;
+        break;
+      }
+    }
+    if (foundMod) {
+      activeModuleId = foundMod;
+      renderNav();
+      document.getElementById('mainContent').innerHTML = renderModule(foundMod);
+      return;
+    }
+  }
+  // No match or empty search, refresh current
+  document.getElementById('mainContent').innerHTML = renderModule(activeModuleId);
+}
+
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+  if (e.key==='Enter') doSearch();
+});
+document.getElementById('searchInput').addEventListener('input', function() {
+  if (!this.value.trim()) {
+    searchQuery = '';
+    document.getElementById('mainContent').innerHTML = renderModule(activeModuleId);
+  }
+});
+
+// ==================== DRAG & DROP ====================
+let dragSrcIndex = null;
+
+function handleDragStart(e) {
+  dragSrcIndex = parseInt(e.target.dataset.index);
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', e.target.dataset.moduleId);
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.target.closest('.nav-tab')?.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.target.closest('.nav-tab')?.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.target.closest('.nav-tab')?.classList.remove('drag-over');
+  const targetTab = e.target.closest('.nav-tab');
+  if (!targetTab || dragSrcIndex === null) return;
+  const destIndex = parseInt(targetTab.dataset.index);
+  if (destIndex === dragSrcIndex) return;
+
+  // Reorder
+  const item = moduleOrder.splice(dragSrcIndex, 1)[0];
+  moduleOrder.splice(destIndex, 0, item);
+  localStorage.setItem(STORAGE_KEY_MODULES, JSON.stringify(moduleOrder));
+  renderNav();
+  dragSrcIndex = null;
+}
+
+function handleDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.nav-tab.drag-over').forEach(t=>t.classList.remove('drag-over'));
+  dragSrcIndex = null;
+}
+
+// ==================== THEME ====================
+function toggleTheme() {
+  const body = document.body;
+  const cur = body.dataset.theme;
+  const next = cur === 'dark' ? 'light' : 'dark';
+  body.dataset.theme = next;
+  localStorage.setItem(STORAGE_KEY_THEME, next);
+}
+
+(function initTheme() {
+  const saved = localStorage.getItem(STORAGE_KEY_THEME);
+  if (saved) document.body.dataset.theme = saved;
+  else if (window.matchMedia('(prefers-color-scheme:dark)').matches) document.body.dataset.theme = 'dark';
+})();
+
+// ==================== MODAL ====================
+function openAddModal() {
+  const sel = document.getElementById('modalModule');
+  sel.innerHTML = MODULES.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  sel.value = activeModuleId;
+  document.getElementById('modalTitle').textContent = '添加工具';
+  document.getElementById('modalName').value = '';
+  document.getElementById('modalDesc').value = '';
+  document.getElementById('modalIcon').value = '🔧';
+  document.getElementById('modalUrl').value = '';
+  document.getElementById('modalTags').value = '';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function confirmAddTool() {
+  const name = document.getElementById('modalName').value.trim();
+  const desc = document.getElementById('modalDesc').value.trim();
+  const icon = document.getElementById('modalIcon').value.trim() || '🔧';
+  const url = document.getElementById('modalUrl').value.trim();
+  const tags = document.getElementById('modalTags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const modId = document.getElementById('modalModule').value;
+
+  if (!name || !desc || !url) { showToast('请填写名称、简介和网址'); return; }
+  if (!/^https?:\/\//i.test(url)) { showToast('网址需以 http:// 或 https:// 开头'); return; }
+
+  const newTool = {
+    name, desc, icon, url, tags,
+    id: 'user_'+Date.now(),
+    _isUser: true
+  };
+
+  if (!userTools[modId]) userTools[modId] = [];
+  userTools[modId].push(newTool);
+  localStorage.setItem(STORAGE_KEY_TOOLS, JSON.stringify(userTools));
+
+  closeModal();
+  showToast('✅ 工具已添加！');
+  document.getElementById('mainContent').innerHTML = renderModule(activeModuleId);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ==================== CARD INTERACTION ====================
+function openCardLink(e, url) {
+  if (!url || url==='#') return;
+  if (e.target.closest('.card-copy-btn')) return; // Don't open link on copy btn click
+  window.open(url, '_blank');
+}
+
+function copyPrompt(e, btn) {
+  e.stopPropagation();
+  const raw = btn.dataset.prompt;
+  // Unescape HTML entities
+  const txt = document.createElement('textarea');
+  txt.innerHTML = raw;
+  const decoded = txt.value;
+  navigator.clipboard.writeText(decoded).then(()=>{
+    btn.textContent = '✅ 已复制';
+    btn.classList.add('copied');
+    setTimeout(()=>{
+      btn.textContent = '📋 一键复制';
+      btn.classList.remove('copied');
+    },2000);
+    showToast('📋 已复制到剪贴板');
+  }).catch(()=>{
+    showToast('复制失败，请手动复制');
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// ==================== CLOSE MODAL ON OVERLAY CLICK ====================
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ==================== INIT ====================
+renderNav();
+document.getElementById('mainContent').innerHTML = renderModule(activeModuleId);
+</script>
+</body>
+</html>
