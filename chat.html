@@ -150,9 +150,9 @@ function loadActiveModels() {
     const savedIds = JSON.parse(saved);
     activeModels = savedIds.filter(id => availableModels.some(m => m.id === id));
   }
-  // 默认只选中已配置的模型
+  // 默认选中所有模型
   if (!activeModels.length) {
-    activeModels = availableModels.filter(m => m.configured !== false).map(m => m.id);
+    activeModels = availableModels.map(m => m.id);
   }
 }
 
@@ -184,13 +184,12 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   localStorage.setItem('xiaseek_theme', isDark ? 'dark' : 'light');
 });
 
-// ===== 渲染模型卡片（仅已配置的模型） =====
+// ===== 渲染模型卡片（显示所有勾选的模型） =====
 function renderCards() {
   const container = document.getElementById('cardsContainer');
   const models = activeModels
     .map(id => availableModels.find(m => m.id === id))
-    .filter(Boolean)
-    .filter(m => m.configured !== false);
+    .filter(Boolean);
 
   if (!models.length) {
     container.innerHTML = `<div class="flex-1 flex items-center justify-center" style="color:var(--text-secondary);">
@@ -211,7 +210,9 @@ function renderCards() {
         <span class="text-xs flex-shrink-0" id="status-${model.id}" style="color:var(--text-secondary);">⏳</span>
       </div>
       <div class="flex-1 overflow-y-auto p-3 model-content text-sm" id="content-${model.id}">
-        <p style="color:var(--text-secondary);">等待输入问题...</p>
+        ${model.configured === false
+          ? '<p class="text-sm" style="color:#f59e0b;">⚠️ 请先在设置中配置API密钥</p>'
+          : '<p style="color:var(--text-secondary);">等待输入问题...</p>'}
       </div>
     </div>`;
     if (i < models.length - 1) {
@@ -280,28 +281,38 @@ async function sendMessage() {
   const message = input.value.trim();
   if (!message) return;
 
-  const models = activeModels
+  const allModels = activeModels
     .map(id => availableModels.find(m => m.id === id))
-    .filter(Boolean)
-    .filter(m => m.configured !== false);
+    .filter(Boolean);
 
-  if (!models.length) return alert('没有已配置的模型，请在设置中配置API密钥');
+  const configuredModels = allModels.filter(m => m.configured !== false);
+  const unconfiguredModels = allModels.filter(m => m.configured === false);
+
+  if (!configuredModels.length) return alert('没有已配置的模型，请在设置中配置API密钥');
 
   isLoading = true;
   const sendBtn = document.getElementById('sendBtn');
   sendBtn.disabled = true;
   sendBtn.textContent = '⏳';
 
-  models.forEach(m => {
+  // 已配置模型：显示思考中
+  configuredModels.forEach(m => {
     const el = document.getElementById(`content-${m.id}`);
     if (el) el.innerHTML = '<p class="typing" style="color:var(--text-secondary);">思考中...</p>';
     const st = document.getElementById(`status-${m.id}`);
     if (st) st.textContent = '💭';
   });
 
-  // 收集自定义模型配置（含API key，需传给后端）
-  const modelIds = models.map(m => m.id);
-  const customConfigs = models
+  // 未配置模型：直接显示提示
+  unconfiguredModels.forEach(m => {
+    const el = document.getElementById(`content-${m.id}`);
+    if (el) el.innerHTML = '<p style="color:#f59e0b;">⚠️ 该模型未配置API密钥，请在设置中添加</p>';
+    const st = document.getElementById(`status-${m.id}`);
+    if (st) st.textContent = '⚠️';
+  });
+
+  const modelIds = configuredModels.map(m => m.id);
+  const customConfigs = configuredModels
     .filter(m => !m.builtin)
     .map(m => ({ id: m.id, name: m.name, apiKey: m.apiKey, baseURL: m.baseURL, model: m.model }));
 
@@ -415,8 +426,8 @@ function openSettings() {
     const isConfigured = m.configured !== false;
     const isChecked = activeModels.includes(m.id);
     return `
-    <label class="flex items-center gap-3 p-3 rounded-lg ${isConfigured ? 'cursor-pointer hover:opacity-80' : 'opacity-50'}" style="background:var(--bg);">
-      <input type="checkbox" ${isChecked ? 'checked' : ''} ${!isConfigured ? 'disabled' : ''}
+    <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80" style="background:var(--bg);">
+      <input type="checkbox" ${isChecked ? 'checked' : ''}
         onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
       <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
       <span class="flex-1 text-sm font-medium">${m.name}</span>
