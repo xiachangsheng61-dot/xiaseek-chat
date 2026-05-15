@@ -165,7 +165,7 @@ async function streamOpenAI(res, config, message, history) {
   ];
 
   const baseURL = config.baseURL.replace(/\/+$/, '');
-  const url = baseURL.endsWith('/v1') ? `${baseURL}/chat/completions` : `${baseURL}/v1/chat/completions`;
+  const url = /\/v\d+$/.test(baseURL) ? `${baseURL}/chat/completions` : `${baseURL}/v1/chat/completions`;
 
   const response = await fetch(url, {
     method: 'POST',
