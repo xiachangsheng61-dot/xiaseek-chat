@@ -463,7 +463,6 @@ function openSettings() {
         style="background:var(--primary); color:#fff; border-color:var(--primary);">保存</button>
     </div>`;
   }
-  }
 
   list.innerHTML = builtinModels.map(modelRow).join('')
     + (userCustomModels.length ? '<div class="text-xs mt-3 mb-2" style="color:var(--text-secondary);">自定义模型</div>' : '')
