@@ -111,6 +111,7 @@ let isLoading = false;
 async function init() {
   initTheme();
   loadCustomModels();
+  loadModelKeys();
   await loadModels();
   loadActiveModels();
   loadPanelWidths();
@@ -127,6 +128,20 @@ function loadCustomModels() {
 
 function saveCustomModels() {
   localStorage.setItem('xiaseek_custom_models', JSON.stringify(customModels));
+}
+
+
+let modelKeys = {};
+function loadModelKeys() {
+  try { modelKeys = JSON.parse(localStorage.getItem('xiaseek_model_keys') || '{}'); } catch { modelKeys = {}; }
+}
+function saveModelKeys() {
+  localStorage.setItem('xiaseek_model_keys', JSON.stringify(modelKeys));
+}
+function isModelUsable(m) {
+  if (m.configured !== false) return true;
+  if (modelKeys[m.id]) return true;
+  return false;
 }
 
 async function loadModels() {
@@ -150,9 +165,9 @@ function loadActiveModels() {
     const savedIds = JSON.parse(saved);
     activeModels = savedIds.filter(id => availableModels.some(m => m.id === id));
   }
-  // 默认选中所有模型
+  // 默认只启用豆包和DeepSeek
   if (!activeModels.length) {
-    activeModels = availableModels.map(m => m.id);
+    activeModels = ['deepseek', 'doubao'].filter(id => availableModels.some(m => m.id === id));
   }
 }
 
@@ -285,8 +300,8 @@ async function sendMessage() {
     .map(id => availableModels.find(m => m.id === id))
     .filter(Boolean);
 
-  const configuredModels = allModels.filter(m => m.configured !== false);
-  const unconfiguredModels = allModels.filter(m => m.configured === false);
+  const configuredModels = allModels.filter(m => isModelUsable(m));
+  const unconfiguredModels = allModels.filter(m => !isModelUsable(m));
 
   if (!configuredModels.length) return alert('没有已配置的模型，请在设置中配置API密钥');
 
@@ -313,8 +328,15 @@ async function sendMessage() {
 
   const modelIds = configuredModels.map(m => m.id);
   const customConfigs = configuredModels
-    .filter(m => !m.builtin)
-    .map(m => ({ id: m.id, name: m.name, apiKey: m.apiKey, baseURL: m.baseURL, model: m.model }));
+    .map(m => {
+      const c = { id: m.id, name: m.name };
+      const key = modelKeys[m.id] || m.apiKey;
+      if (key) c.apiKey = key;
+      if (m.baseURL) c.baseURL = m.baseURL;
+      if (m.model) c.model = m.model;
+      return c;
+    })
+    .filter(c => c.apiKey);
 
   try {
     const res = await fetch(`${API_BASE}/api/chat/stream`, {
@@ -327,7 +349,7 @@ async function sendMessage() {
     const decoder = new TextDecoder();
     let buffer = '';
     const modelContents = {};
-    models.forEach(m => { modelContents[m.id] = ''; });
+    configuredModels.forEach(m => { modelContents[m.id] = ''; });
     let currentEvent = '';
 
     while (true) {
@@ -418,39 +440,52 @@ document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
 function openSettings() {
   const list = document.getElementById('modelChecklist');
-  // 先展示内置模型（含未配置的）
-  const builtinModels = availableModels.filter(m => m.builtin || m.configured !== false);
-  const userCustomModels = availableModels.filter(m => !m.builtin && m.configured !== false);
+  const builtinModels = availableModels.filter(m => m.builtin);
+  const userCustomModels = availableModels.filter(m => !m.builtin);
 
-  list.innerHTML = builtinModels.map(m => {
-    const isConfigured = m.configured !== false;
+  function modelRow(m) {
     const isChecked = activeModels.includes(m.id);
+    const hasEnvKey = m.configured !== false;
+    const userKey = modelKeys[m.id] || '';
+    const ph = hasEnvKey ? '已配置(环境变量)' : '在此输入API Key';
     return `
-    <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80" style="background:var(--bg);">
+    <div class="flex items-center gap-2 p-2.5 rounded-lg" style="background:var(--bg);">
       <input type="checkbox" ${isChecked ? 'checked' : ''}
         onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
       <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
-      <span class="flex-1 text-sm font-medium">${m.name}</span>
-      ${isConfigured
-        ? '<span class="badge flex-shrink-0" style="background:#d1fae5;color:#065f46;">已配置</span>'
-        : '<span class="badge flex-shrink-0" style="background:#fee2e2;color:#991b1b;">未配置</span>'}
-    </label>`;
-  }).join('')
+      <span class="text-sm font-medium flex-shrink-0" style="width:70px;">${m.name}</span>
+      <input type="password" value="${escapeAttr(userKey)}"
+        placeholder="${ph}" id="keyinput-${m.id}"
+        class="flex-1 p-1.5 rounded text-xs"
+        style="background:var(--card-bg); border:1px solid var(--border); color:var(--text); min-width:0;">
+      <button onclick="saveModelKey('${m.id}')" id="savebtn-${m.id}"
+        class="px-2 py-1 rounded text-xs font-semibold flex-shrink-0 cursor-pointer border"
+        style="background:var(--primary); color:#fff; border-color:var(--primary);">保存</button>
+    </div>`;
+  }
+  }
 
-  // 自定义模型（有删除按钮）
-  + (userCustomModels.length ? '<div class="text-xs mt-3 mb-2" style="color:var(--text-secondary);">自定义模型</div>' : '')
-  + userCustomModels.map(m => {
-    const isChecked = activeModels.includes(m.id);
-    return `
-    <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80" style="background:var(--bg);">
-      <input type="checkbox" ${isChecked ? 'checked' : ''}
-        onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
-      <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
-      <span class="flex-1 text-sm font-medium">${m.name}</span>
-      <span class="text-xs flex-shrink-0" style="color:var(--text-secondary);">${m.model}</span>
-      <button onclick="event.preventDefault(); removeCustomModel('${m.id}')" class="text-xs cursor-pointer" style="color:#ef4444;" title="删除">✕</button>
-    </label>`;
-  }).join('');
+  list.innerHTML = builtinModels.map(modelRow).join('')
+    + (userCustomModels.length ? '<div class="text-xs mt-3 mb-2" style="color:var(--text-secondary);">自定义模型</div>' : '')
+    + userCustomModels.map(m => {
+      const isChecked = activeModels.includes(m.id);
+      const userKey = modelKeys[m.id] || m.apiKey || '';
+      return `
+      <div class="flex items-center gap-2 p-2.5 rounded-lg" style="background:var(--bg);">
+        <input type="checkbox" ${isChecked ? 'checked' : ''}
+          onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
+        <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
+        <span class="text-sm font-medium flex-shrink-0" style="width:70px;">${m.name}</span>
+        <input type="password" value="${escapeAttr(userKey)}"
+          placeholder="API Key" id="keyinput-${m.id}"
+          class="flex-1 p-1.5 rounded text-xs"
+          style="background:var(--card-bg); border:1px solid var(--border); color:var(--text); min-width:0;">
+        <button onclick="saveModelKey('${m.id}')" id="savebtn-${m.id}"
+          class="px-2 py-1 rounded text-xs font-semibold flex-shrink-0 cursor-pointer border"
+          style="background:var(--primary); color:#fff; border-color:var(--primary);">保存</button>
+        <button onclick="event.preventDefault(); removeCustomModel('${m.id}')" class="text-xs cursor-pointer flex-shrink-0" style="color:#ef4444;" title="删除">✕</button>
+      </div>`;
+    }).join('');
 
   document.getElementById('showAddBtn').style.display = 'block';
   document.getElementById('addModelForm').classList.add('hidden');
@@ -459,6 +494,34 @@ function openSettings() {
 
 function closeSettings() {
   document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function saveModelKey(modelId) {
+  const input = document.getElementById('keyinput-' + modelId);
+  const btn = document.getElementById('savebtn-' + modelId);
+  if (!input || !btn) return;
+  const value = input.value.trim();
+  if (value) {
+    modelKeys[modelId] = value;
+  } else {
+    delete modelKeys[modelId];
+  }
+  saveModelKeys();
+  btn.textContent = '✓ 已保存';
+  btn.style.background = '#22c55e';
+  btn.style.borderColor = '#22c55e';
+  setTimeout(() => {
+    btn.textContent = '保存';
+    btn.style.background = 'var(--primary)';
+    btn.style.borderColor = 'var(--primary)';
+  }, 1500);
+  // Refresh cards to pick up the new key
+  loadActiveModels();
+  renderCards();
+}
+
+function escapeAttr(str) {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function toggleModel(modelId, checked) {

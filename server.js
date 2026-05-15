@@ -114,10 +114,18 @@ app.post('/api/chat/stream', async (req, res) => {
   });
 
   const tasks = modelIds.map(async (modelId) => {
-    // 优先查注册表，再查自定义模型
-    let config = MODEL_REGISTRY[modelId];
-    if (!config && customMap[modelId]) {
-      config = { ...customMap[modelId], provider: 'openai' };
+    // 1. 查注册表获取内置配置（含 .env 密钥）
+    let config = MODEL_REGISTRY[modelId] ? { ...MODEL_REGISTRY[modelId] } : null;
+    // 2. 合并前端传来的自定义覆盖（localStorage 优先于 .env）
+    if (customMap[modelId]) {
+      const override = customMap[modelId];
+      if (config) {
+        if (override.apiKey) config.apiKey = override.apiKey;
+        if (override.baseURL) config.baseURL = override.baseURL;
+        if (override.model) config.model = override.model;
+      } else {
+        config = { ...override, provider: 'openai' };
+      }
     }
     if (!config) {
       sendSSE(res, 'error', { modelId, error: `未知模型: ${modelId}` });
