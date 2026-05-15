@@ -1,0 +1,15 @@
+{
+  "name": "xiaseek-chat",
+  "version": "1.0.0",
+  "description": "多模型AI聚合对话平台 - 后端API网关",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  }
+}
