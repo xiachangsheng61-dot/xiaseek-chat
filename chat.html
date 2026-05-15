@@ -33,10 +33,10 @@
   .model-content ul, .model-content ol { margin: 4px 0; padding-left: 20px; }
   .model-content h1, .model-content h2, .model-content h3 { margin: 8px 0 4px; }
   .model-content blockquote { border-left: 3px solid var(--primary); padding-left: 12px; margin: 4px 0; opacity: 0.8; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
 </style>
 </head>
 <body class="min-h-screen flex flex-col">
-  <!-- 顶部导航 -->
   <nav class="flex items-center justify-between px-4 md:px-6 py-3 border-b flex-shrink-0" style="background:var(--card-bg); border-color:var(--border);">
     <div class="flex items-center gap-3">
       <a href="/" class="text-lg font-bold no-underline" style="color:var(--primary);">🦐 虾SeekAI</a>
@@ -49,9 +49,7 @@
     </div>
   </nav>
 
-  <!-- 主内容区 -->
   <main class="flex-1 flex flex-col px-3 md:px-4 py-3 max-w-[1600px] mx-auto w-full min-h-0">
-    <!-- 输入区 -->
     <div class="flex-shrink-0 mb-3">
       <div class="flex gap-2 md:gap-3">
         <textarea id="userInput" rows="2" class="flex-1 p-3 rounded-xl resize-none text-base" style="background:var(--card-bg); border:1px solid var(--border); color:var(--text);"
@@ -63,7 +61,6 @@
       </div>
     </div>
 
-    <!-- 模型卡片容器 -->
     <div id="cardsContainer" class="flex-1 flex gap-0 overflow-hidden min-h-0">
       <div class="flex-1 flex items-center justify-center" style="color:var(--text-secondary);">
         <p>正在加载模型列表...</p>
@@ -73,13 +70,31 @@
 
   <!-- 模型设置弹窗 -->
   <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center hidden" style="background:rgba(0,0,0,0.5);">
-    <div class="card p-6 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto mx-4">
-      <h2 class="text-lg font-bold mb-4">⚙️ 模型设置</h2>
-      <p class="text-sm mb-3" style="color:var(--text-secondary);">勾选要使用的模型，更改实时生效</p>
-      <div id="modelChecklist" class="space-y-2 mb-4"></div>
-      <div class="flex justify-end gap-2">
-        <button onclick="closeSettings()" class="px-4 py-2 rounded-lg border cursor-pointer" style="border-color:var(--border);">关闭</button>
+    <div class="card p-6 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold">⚙️ 模型设置</h2>
+        <button onclick="closeSettings()" class="text-xl cursor-pointer" style="color:var(--text-secondary);">&times;</button>
       </div>
+      <p class="text-sm mb-3" style="color:var(--text-secondary);">勾选要使用的模型。未配置密钥的模型无法使用，请在下方添加。</p>
+      <div id="modelChecklist" class="space-y-2 mb-4"></div>
+
+      <!-- 添加自定义模型 -->
+      <div id="addModelForm" class="border-t pt-4 hidden" style="border-color:var(--border);">
+        <h3 class="text-sm font-semibold mb-3">➕ 添加自定义模型（OpenAI兼容）</h3>
+        <div class="space-y-2">
+          <input id="customName" class="w-full p-2 rounded-lg text-sm" style="background:var(--bg); border:1px solid var(--border); color:var(--text);" placeholder="模型名称，如：Kimi">
+          <input id="customModel" class="w-full p-2 rounded-lg text-sm" style="background:var(--bg); border:1px solid var(--border); color:var(--text);" placeholder="Model ID，如：moonshot-v1-8k">
+          <input id="customBaseURL" class="w-full p-2 rounded-lg text-sm" style="background:var(--bg); border:1px solid var(--border); color:var(--text);" placeholder="Base URL，如：https://api.moonshot.cn/v1">
+          <input id="customApiKey" type="password" class="w-full p-2 rounded-lg text-sm" style="background:var(--bg); border:1px solid var(--border); color:var(--text);" placeholder="API Key">
+          <input id="customIcon" class="w-full p-2 rounded-lg text-sm" style="background:var(--bg); border:1px solid var(--border); color:var(--text);" placeholder="图标 emoji，如：🌙（可选）" maxlength="3">
+          <div class="flex gap-2">
+            <button onclick="addCustomModel()" class="flex-1 px-4 py-2 rounded-lg text-white text-sm font-semibold cursor-pointer" style="background:var(--primary);">确认添加</button>
+            <button onclick="toggleAddForm()" class="px-4 py-2 rounded-lg text-sm border cursor-pointer" style="border-color:var(--border);">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="showAddBtn" onclick="toggleAddForm()" class="w-full mt-3 px-4 py-2 rounded-lg text-sm border cursor-pointer" style="border-color:var(--border); color:var(--primary); font-weight:600;">➕ 添加自定义模型</button>
     </div>
   </div>
 
@@ -87,6 +102,7 @@
 // ===== 状态管理 =====
 const API_BASE = window.location.origin;
 let availableModels = [];
+let customModels = [];
 let activeModels = [];
 let panelWidths = {};
 let isLoading = false;
@@ -94,6 +110,7 @@ let isLoading = false;
 // ===== 初始化 =====
 async function init() {
   initTheme();
+  loadCustomModels();
   await loadModels();
   loadActiveModels();
   loadPanelWidths();
@@ -101,14 +118,29 @@ async function init() {
   setupKeyboardShortcut();
 }
 
+function loadCustomModels() {
+  try {
+    const saved = localStorage.getItem('xiaseek_custom_models');
+    customModels = saved ? JSON.parse(saved) : [];
+  } catch { customModels = []; }
+}
+
+function saveCustomModels() {
+  localStorage.setItem('xiaseek_custom_models', JSON.stringify(customModels));
+}
+
 async function loadModels() {
   try {
     const res = await fetch(`${API_BASE}/api/models`);
     const data = await res.json();
-    availableModels = data.models || [];
+    // 合并内置模型和自定义模型
+    availableModels = [
+      ...(data.models || []),
+      ...customModels
+    ];
   } catch (err) {
     console.error('加载模型列表失败:', err);
-    availableModels = [];
+    availableModels = [...customModels];
   }
 }
 
@@ -118,8 +150,9 @@ function loadActiveModels() {
     const savedIds = JSON.parse(saved);
     activeModels = savedIds.filter(id => availableModels.some(m => m.id === id));
   }
+  // 默认只选中已配置的模型
   if (!activeModels.length) {
-    activeModels = availableModels.map(m => m.id);
+    activeModels = availableModels.filter(m => m.configured !== false).map(m => m.id);
   }
 }
 
@@ -151,14 +184,17 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   localStorage.setItem('xiaseek_theme', isDark ? 'dark' : 'light');
 });
 
-// ===== 渲染模型卡片 =====
+// ===== 渲染模型卡片（仅已配置的模型） =====
 function renderCards() {
   const container = document.getElementById('cardsContainer');
-  const models = activeModels.map(id => availableModels.find(m => m.id === id)).filter(Boolean);
+  const models = activeModels
+    .map(id => availableModels.find(m => m.id === id))
+    .filter(Boolean)
+    .filter(m => m.configured !== false);
 
   if (!models.length) {
     container.innerHTML = `<div class="flex-1 flex items-center justify-center" style="color:var(--text-secondary);">
-      <div class="text-center"><p class="text-lg mb-2">🤖</p><p>暂无可用模型</p><p class="text-xs mt-1">请检查 .env 中的API密钥配置，或点击"模型设置"</p></div>
+      <div class="text-center"><p class="text-lg mb-2">🤖</p><p>暂无可用模型</p><p class="text-xs mt-1">请检查API密钥配置，或点击"模型设置"添加</p></div>
     </div>`;
     return;
   }
@@ -192,6 +228,7 @@ let resizeState = null;
 function startResize(e, index) {
   e.preventDefault();
   const cards = document.querySelectorAll('#cardsContainer .card');
+  if (cards.length < 2) return;
   resizeState = {
     index,
     startX: e.clientX,
@@ -200,12 +237,10 @@ function startResize(e, index) {
     leftStartWidth: cards[index].offsetWidth,
     rightStartWidth: cards[index + 1].offsetWidth
   };
-
   const handles = document.querySelectorAll('.resize-handle');
   if (handles[index]) handles[index].classList.add('active');
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
-
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', stopResize);
 }
@@ -214,10 +249,8 @@ function onResize(e) {
   if (!resizeState) return;
   const containerWidth = document.getElementById('cardsContainer').offsetWidth;
   const dx = e.clientX - resizeState.startX;
-
   const leftPct = ((resizeState.leftStartWidth + dx) / containerWidth) * 100;
   const rightPct = ((resizeState.rightStartWidth - dx) / containerWidth) * 100;
-
   if (leftPct > 10 && rightPct > 10) {
     resizeState.leftCard.style.width = leftPct + '%';
     resizeState.rightCard.style.width = rightPct + '%';
@@ -231,14 +264,12 @@ function stopResize() {
   document.body.style.userSelect = '';
   document.removeEventListener('mousemove', onResize);
   document.removeEventListener('mouseup', stopResize);
-
   document.querySelectorAll('#cardsContainer .card').forEach(card => {
     const modelId = card.dataset.model;
     const width = parseFloat(card.style.width);
     if (!isNaN(width)) panelWidths[modelId] = width;
   });
   savePanelWidths();
-
   resizeState = null;
 }
 
@@ -249,8 +280,12 @@ async function sendMessage() {
   const message = input.value.trim();
   if (!message) return;
 
-  const models = activeModels.map(id => availableModels.find(m => m.id === id)).filter(Boolean);
-  if (!models.length) return alert('请先选择至少一个模型');
+  const models = activeModels
+    .map(id => availableModels.find(m => m.id === id))
+    .filter(Boolean)
+    .filter(m => m.configured !== false);
+
+  if (!models.length) return alert('没有已配置的模型，请在设置中配置API密钥');
 
   isLoading = true;
   const sendBtn = document.getElementById('sendBtn');
@@ -258,17 +293,23 @@ async function sendMessage() {
   sendBtn.textContent = '⏳';
 
   models.forEach(m => {
-    const contentEl = document.getElementById(`content-${m.id}`);
-    if (contentEl) contentEl.innerHTML = '<p class="typing" style="color:var(--text-secondary);">思考中...</p>';
-    const statusEl = document.getElementById(`status-${m.id}`);
-    if (statusEl) statusEl.textContent = '💭';
+    const el = document.getElementById(`content-${m.id}`);
+    if (el) el.innerHTML = '<p class="typing" style="color:var(--text-secondary);">思考中...</p>';
+    const st = document.getElementById(`status-${m.id}`);
+    if (st) st.textContent = '💭';
   });
+
+  // 收集自定义模型配置（含API key，需传给后端）
+  const modelIds = models.map(m => m.id);
+  const customConfigs = models
+    .filter(m => !m.builtin)
+    .map(m => ({ id: m.id, name: m.name, apiKey: m.apiKey, baseURL: m.baseURL, model: m.model }));
 
   try {
     const res = await fetch(`${API_BASE}/api/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, modelIds: activeModels, conversationHistory: [] })
+      body: JSON.stringify({ message, modelIds, customModels: customConfigs, conversationHistory: [] })
     });
 
     const reader = res.body.getReader();
@@ -276,8 +317,6 @@ async function sendMessage() {
     let buffer = '';
     const modelContents = {};
     models.forEach(m => { modelContents[m.id] = ''; });
-
-    // SSE state machine
     let currentEvent = '';
 
     while (true) {
@@ -295,9 +334,8 @@ async function sendMessage() {
           const dataStr = line.slice(6);
           if (!currentEvent) continue;
           try {
-            const data = JSON.parse(dataStr);
-            handleSSEEvent(currentEvent, data, modelContents);
-          } catch (e) { console.warn('SSE解析失败:', dataStr, e); }
+            handleSSEEvent(currentEvent, JSON.parse(dataStr), modelContents);
+          } catch {}
           currentEvent = '';
         }
       }
@@ -357,10 +395,10 @@ function escapeHtml(str) {
 function clearAll() {
   document.getElementById('userInput').value = '';
   activeModels.forEach(id => {
-    const contentEl = document.getElementById(`content-${id}`);
-    if (contentEl) contentEl.innerHTML = '<p style="color:var(--text-secondary);">等待输入问题...</p>';
-    const statusEl = document.getElementById(`status-${id}`);
-    if (statusEl) statusEl.textContent = '⏳';
+    const el = document.getElementById(`content-${id}`);
+    if (el) el.innerHTML = '<p style="color:var(--text-secondary);">等待输入问题...</p>';
+    const st = document.getElementById(`status-${id}`);
+    if (st) st.textContent = '⏳';
   });
 }
 
@@ -369,15 +407,42 @@ document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
 function openSettings() {
   const list = document.getElementById('modelChecklist');
-  list.innerHTML = availableModels.map(m => `
+  // 先展示内置模型（含未配置的）
+  const builtinModels = availableModels.filter(m => m.builtin || m.configured !== false);
+  const userCustomModels = availableModels.filter(m => !m.builtin && m.configured !== false);
+
+  list.innerHTML = builtinModels.map(m => {
+    const isConfigured = m.configured !== false;
+    const isChecked = activeModels.includes(m.id);
+    return `
+    <label class="flex items-center gap-3 p-3 rounded-lg ${isConfigured ? 'cursor-pointer hover:opacity-80' : 'opacity-50'}" style="background:var(--bg);">
+      <input type="checkbox" ${isChecked ? 'checked' : ''} ${!isConfigured ? 'disabled' : ''}
+        onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
+      <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
+      <span class="flex-1 text-sm font-medium">${m.name}</span>
+      ${isConfigured
+        ? '<span class="badge flex-shrink-0" style="background:#d1fae5;color:#065f46;">已配置</span>'
+        : '<span class="badge flex-shrink-0" style="background:#fee2e2;color:#991b1b;">未配置</span>'}
+    </label>`;
+  }).join('')
+
+  // 自定义模型（有删除按钮）
+  + (userCustomModels.length ? '<div class="text-xs mt-3 mb-2" style="color:var(--text-secondary);">自定义模型</div>' : '')
+  + userCustomModels.map(m => {
+    const isChecked = activeModels.includes(m.id);
+    return `
     <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80" style="background:var(--bg);">
-      <input type="checkbox" ${activeModels.includes(m.id) ? 'checked' : ''}
+      <input type="checkbox" ${isChecked ? 'checked' : ''}
         onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
       <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
       <span class="flex-1 text-sm font-medium">${m.name}</span>
       <span class="text-xs flex-shrink-0" style="color:var(--text-secondary);">${m.model}</span>
-    </label>
-  `).join('');
+      <button onclick="event.preventDefault(); removeCustomModel('${m.id}')" class="text-xs cursor-pointer" style="color:#ef4444;" title="删除">✕</button>
+    </label>`;
+  }).join('');
+
+  document.getElementById('showAddBtn').style.display = 'block';
+  document.getElementById('addModelForm').classList.add('hidden');
   document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -392,6 +457,66 @@ function toggleModel(modelId, checked) {
     activeModels = activeModels.filter(id => id !== modelId);
   }
   saveActiveModels();
+  renderCards();
+}
+
+// ===== 自定义模型管理 =====
+function toggleAddForm() {
+  const form = document.getElementById('addModelForm');
+  const btn = document.getElementById('showAddBtn');
+  if (form.classList.contains('hidden')) {
+    form.classList.remove('hidden');
+    btn.style.display = 'none';
+    // 清空表单
+    ['customName','customModel','customBaseURL','customApiKey','customIcon'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+  } else {
+    form.classList.add('hidden');
+    btn.style.display = 'block';
+  }
+}
+
+function addCustomModel() {
+  const name = document.getElementById('customName').value.trim();
+  const model = document.getElementById('customModel').value.trim();
+  const baseURL = document.getElementById('customBaseURL').value.trim();
+  const apiKey = document.getElementById('customApiKey').value.trim();
+  const icon = document.getElementById('customIcon').value.trim() || '🤖';
+
+  if (!name || !model || !baseURL || !apiKey) {
+    return alert('请填写所有必填字段（名称、Model ID、Base URL、API Key）');
+  }
+
+  const id = 'custom_' + Date.now();
+  const customModel = {
+    id, name, model, baseURL, apiKey, icon,
+    provider: 'openai',
+    builtin: false,
+    configured: true
+  };
+
+  customModels.push(customModel);
+  saveCustomModels();
+
+  // 重新加载模型列表
+  availableModels = [...availableModels.filter(m => m.builtin), ...customModels];
+  activeModels.push(id);
+  saveActiveModels();
+
+  toggleAddForm();
+  openSettings(); // 刷新设置面板
+  renderCards();
+}
+
+function removeCustomModel(id) {
+  if (!confirm('确定删除此自定义模型？')) return;
+  customModels = customModels.filter(m => m.id !== id);
+  saveCustomModels();
+  activeModels = activeModels.filter(mid => mid !== id);
+  saveActiveModels();
+  availableModels = availableModels.filter(m => m.builtin || m.id !== id);
+  openSettings(); // 刷新设置面板
   renderCards();
 }
 
@@ -413,7 +538,6 @@ function setupKeyboardShortcut() {
   });
 }
 
-// ===== 启动 =====
 init();
 </script>
 </body>

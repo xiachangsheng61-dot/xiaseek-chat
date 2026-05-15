@@ -20,7 +20,8 @@ const MODEL_REGISTRY = {
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
     model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-    icon: '🐋'
+    icon: '🐋',
+    builtin: true
   },
   qwen: {
     id: 'qwen',
@@ -29,7 +30,8 @@ const MODEL_REGISTRY = {
     apiKey: process.env.QWEN_API_KEY,
     baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     model: process.env.QWEN_MODEL || 'qwen-max',
-    icon: '☁️'
+    icon: '☁️',
+    builtin: true
   },
   doubao: {
     id: 'doubao',
@@ -38,7 +40,8 @@ const MODEL_REGISTRY = {
     apiKey: process.env.DOUBAO_API_KEY,
     baseURL: process.env.DOUBAO_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3',
     model: process.env.DOUBAO_MODEL || 'doubao-pro-32k',
-    icon: '🫘'
+    icon: '🫘',
+    builtin: true
   },
   ernie: {
     id: 'ernie',
@@ -47,7 +50,8 @@ const MODEL_REGISTRY = {
     apiKey: process.env.ERNIE_API_KEY,
     secretKey: process.env.ERNIE_SECRET_KEY,
     model: process.env.ERNIE_MODEL || 'ernie-4.0',
-    icon: '📘'
+    icon: '📘',
+    builtin: true
   },
   glm: {
     id: 'glm',
@@ -56,11 +60,11 @@ const MODEL_REGISTRY = {
     apiKey: process.env.GLM_API_KEY,
     baseURL: process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
     model: process.env.GLM_MODEL || 'glm-4',
-    icon: '🏛️'
+    icon: '🏛️',
+    builtin: true
   }
 };
 
-// 检测 API Key 是否为占位符（未真实配置）
 function isValidKey(key) {
   if (!key) return false;
   const lower = key.toLowerCase();
@@ -69,28 +73,37 @@ function isValidKey(key) {
   return true;
 }
 
-// GET /api/models — 返回可用模型列表（不含密钥）
+function isModelConfigured(m) {
+  if (m.provider === 'ernie') return isValidKey(m.apiKey) && isValidKey(m.secretKey);
+  return isValidKey(m.apiKey);
+}
+
+// GET /api/models — 返回所有模型列表（含 configured 状态，不含密钥）
 app.get('/api/models', (req, res) => {
   const models = Object.values(MODEL_REGISTRY)
-    .filter(m => {
-      if (m.provider === 'ernie') return isValidKey(m.apiKey) && isValidKey(m.secretKey);
-      return isValidKey(m.apiKey);
-    })
-    .map(({ id, name, provider, model, icon }) => ({ id, name, provider, model, icon }));
+    .map(({ id, name, provider, model, icon, builtin }) => ({
+      id, name, provider, model, icon, builtin,
+      configured: isModelConfigured(MODEL_REGISTRY[id])
+    }));
   res.json({ models });
 });
 
-// SSE 辅助函数
 function sendSSE(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 // POST /api/chat/stream — 流式对话接口
 app.post('/api/chat/stream', async (req, res) => {
-  const { message, modelIds, conversationHistory } = req.body;
+  const { message, modelIds, customModels, conversationHistory } = req.body;
 
   if (!message || !modelIds || !modelIds.length) {
     return res.status(400).json({ error: '缺少 message 或 modelIds' });
+  }
+
+  // 合并自定义模型（前端传来的临时配置，含apiKey）
+  const customMap = {};
+  if (Array.isArray(customModels)) {
+    customModels.forEach(m => { customMap[m.id] = m; });
   }
 
   res.writeHead(200, {
@@ -101,13 +114,17 @@ app.post('/api/chat/stream', async (req, res) => {
   });
 
   const tasks = modelIds.map(async (modelId) => {
-    const config = MODEL_REGISTRY[modelId];
+    // 优先查注册表，再查自定义模型
+    let config = MODEL_REGISTRY[modelId];
+    if (!config && customMap[modelId]) {
+      config = { ...customMap[modelId], provider: 'openai' };
+    }
     if (!config) {
       sendSSE(res, 'error', { modelId, error: `未知模型: ${modelId}` });
       return;
     }
-    if (!config.apiKey || !isValidKey(config.apiKey)) {
-      sendSSE(res, 'error', { modelId, error: `${config.name} 未配置有效的API密钥` });
+    if (!isModelConfigured(config)) {
+      sendSSE(res, 'error', { modelId, error: `${config.name} 未配置有效的API密钥，请在设置中填写` });
       return;
     }
 
@@ -127,7 +144,6 @@ app.post('/api/chat/stream', async (req, res) => {
   res.end();
 });
 
-// OpenAI 兼容格式的流式调用
 async function streamOpenAI(res, config, message, history) {
   const modelId = config.id;
 
@@ -140,17 +156,16 @@ async function streamOpenAI(res, config, message, history) {
     { role: 'user', content: message }
   ];
 
-  const response = await fetch(`${config.baseURL}/v1/chat/completions`, {
+  const baseURL = config.baseURL.replace(/\/+$/, '');
+  const url = baseURL.endsWith('/v1') ? `${baseURL}/chat/completions` : `${baseURL}/v1/chat/completions`;
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${config.apiKey}`
     },
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      stream: true
-    })
+    body: JSON.stringify({ model: config.model, messages, stream: true })
   });
 
   if (!response.ok) {
@@ -189,11 +204,9 @@ async function streamOpenAI(res, config, message, history) {
   sendSSE(res, 'complete', { modelId, content: fullContent });
 }
 
-// 文心一言 (ERNIE) 流式调用
 async function streamErnie(res, config, message, history) {
   const modelId = config.id;
 
-  // 1. 获取 access_token
   const tokenUrl = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${config.apiKey}&client_secret=${config.secretKey}`;
   const tokenRes = await fetch(tokenUrl);
   const tokenData = await tokenRes.json();
@@ -201,12 +214,8 @@ async function streamErnie(res, config, message, history) {
     throw new Error(`文心一言鉴权失败: ${JSON.stringify(tokenData)}`);
   }
 
-  // 2. 构建消息
-  const messages = [
-    { role: 'user', content: message }
-  ];
+  const messages = [{ role: 'user', content: message }];
 
-  // 3. 调用千帆API (ERNIE 4.0 用 completions_pro，其他模型用 chat/completions)
   const modelEndpoint = config.model.includes('ernie-4') || config.model.includes('ernie4')
     ? 'completions_pro'
     : 'chat/completions';
@@ -216,10 +225,7 @@ async function streamErnie(res, config, message, history) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages,
-      stream: true
-    })
+    body: JSON.stringify({ messages, stream: true })
   });
 
   if (!response.ok) {
@@ -262,10 +268,7 @@ async function streamErnie(res, config, message, history) {
 }
 
 app.listen(PORT, () => {
-  const configuredModels = Object.values(MODEL_REGISTRY).filter(m => {
-    if (m.provider === 'ernie') return isValidKey(m.apiKey) && isValidKey(m.secretKey);
-    return isValidKey(m.apiKey);
-  }).map(m => m.name);
+  const configured = Object.values(MODEL_REGISTRY).filter(isModelConfigured).map(m => m.name);
   console.log(`🚀 聚合对话API网关已启动: http://localhost:${PORT}`);
-  console.log(`📋 已配置模型(${configuredModels.length}): ${configuredModels.join(', ') || '无'}`);
+  console.log(`📋 内置模型(${Object.keys(MODEL_REGISTRY).length}) 已配置(${configured.length}): ${configured.join(', ') || '无'}`);
 });
