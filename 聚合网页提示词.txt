@@ -1,0 +1,207 @@
+### ✅ 结论先行：完全可以！
+你想要的「一个窗口提问，五个模型同时回答」的网页，**Claude Code 完全能帮你从零开发出来**。而且因为它能直接操作代码文件，配合精准的提示词，效率会非常高。
+
+---
+## 🧩 项目整体思路拆解
+要实现这个需求，核心是做一个**多模型聚合对话平台**，结构很清晰：
+1.  **前端界面**：1个输入框 + 5个并排/分栏的回答区（对应DeepSeek、小米、文心一言、千问、豆包），支持流式输出、Markdown渲染。
+2.  **后端服务**：统一的API网关，并行调用5个模型的接口，处理请求转发和响应聚合。
+3.  **模型适配**：处理不同厂商API的格式差异（比如OpenAI格式、Anthropic格式、百度千帆格式等）。
+4.  **状态管理**：记录对话历史、API密钥、加载状态和错误处理。
+---
+## 📝 直接可用的 Claude Code 提示词
+你可以把下面这段提示词复制到Claude Code里，直接启动开发：
+```text
+我需要你帮我开发一个「多模型AI对话聚合网页」，核心功能是：用户在一个输入框提问，5个不同的大语言模型（DeepSeek、小米MiMo、文心一言、阿里千问、豆包）同时返回回答，并分栏显示。
+
+请按以下步骤开发：
+1.  **先规划整体架构**：
+    - 前端用HTML+Tailwind CSS+原生JavaScript实现，做响应式布局，顶部是输入区，下方是5个并排的回答卡片（对应5个模型），每个卡片显示模型名称、加载状态、回复内容。
+    - 后端用Node.js+Express实现一个轻量网关，处理跨域问题，并行调用各模型的API接口，转发请求和流式响应。
+    - 支持流式输出，每个模型的回答实时显示在对应卡片里，同时处理加载、错误、超时状态。
+
+2.  **明确功能细节**：
+    - 输入区：支持文本输入、发送按钮、清空按钮，发送后禁用输入直到所有模型返回。
+    - 回答区：5个卡片横向排列，每个卡片顶部显示模型logo/名称，支持Markdown渲染和代码高亮，失败时显示错误提示。
+    - 配置区：提供一个设置页面，让用户输入5个模型的API Key和基础URL，保存到本地存储。
+    - 对话历史：简单的本地存储对话记录，支持切换历史对话。
+
+3.  **代码开发要求**：
+    - 先创建项目结构，前端用index.html，后端用server.js，所有代码写在一个文件夹里，不引入复杂依赖。
+    - 每个模型的API调用单独写一个模块，方便后续扩展和维护。
+    - 流式响应处理要兼容不同厂商的格式，确保文字能实时显示在对应卡片里。
+    - 代码里加详细注释，方便我后续修改和部署。
+
+4.  **交付物要求**：
+    - 给我完整的项目文件，包括前端、后端代码和启动说明。
+    - 告诉我如何配置API密钥、如何本地运行，以及如何部署到服务器上。
+    - 帮我处理好跨域问题，确保本地开发时前端能正常调用后端接口。
+```
+---
+## 🚀 进阶优化版提示词（更精准、更可控）
+如果你想让开发过程更可控，可以用这个分阶段的提示词：
+```text
+我需要开发一个「多模型AI对话聚合平台」，请分阶段帮我完成，每完成一个阶段我会确认后再进入下一个阶段。
+
+---
+### 阶段1：需求确认与架构设计
+请先帮我确认以下需求：
+- 核心功能：用户输入一个问题，同时向5个模型（DeepSeek、小米MiMo、文心一言、阿里千问、豆包）发送请求，实时展示每个模型的回答。
+- 界面布局：参考我提供的截图，顶部输入区，下方5个并排的回答面板，每个面板独立显示对应模型的回复。
+- 技术栈：前端使用HTML + Tailwind CSS + JavaScript，后端使用Node.js + Express，单文件/轻量架构，无复杂框架。
+- 交互要求：支持流式输出、Markdown渲染、加载/错误状态显示、API Key配置页面。
+
+确认后，请给我一份项目文件结构清单和各模块的职责说明。
+
+---
+### 阶段2：前端界面开发
+按设计稿实现前端页面：
+1.  实现响应式布局，适配桌面端，5个回答面板横向排列，宽度均匀分配。
+2.  每个面板包含：模型标题栏、内容区、加载/错误提示。
+3.  实现输入区的发送、清空、禁用逻辑，发送请求后显示加载动画。
+4.  实现Markdown渲染和代码高亮，确保回复格式美观。
+
+---
+### 阶段3：后端API网关开发
+开发Node.js后端服务：
+1.  实现跨域配置，允许前端跨域请求。
+2.  为每个模型实现API调用模块，兼容各厂商的请求/响应格式，支持流式响应。
+3.  实现并行请求逻辑，同时调用5个模型的API，将每个模型的响应转发到前端对应的面板。
+4.  处理超时、错误、限流等异常情况，返回友好的错误信息。
+
+---
+### 阶段4：集成与调试
+1.  连接前端和后端，确保流式响应能实时显示在对应面板。
+2.  实现API Key配置功能，将配置保存到本地存储，前端请求时携带配置信息。
+3.  测试完整流程，确保所有模型都能正常调用，异常情况有提示。
+
+---
+### 阶段5：部署说明
+给我一份详细的本地运行和服务器部署说明，包括依赖安装、启动命令、API配置步骤，以及常见问题排查方法。
+```
+---
+## 💡 给你的小建议
+1.  **API密钥的问题**：大部分模型的API都需要密钥，你需要提前注册各平台的开发者账号，拿到API Key。如果是个人使用，也可以考虑用第三方代理服务（比如OpenRouter）来统一管理API。
+2.  **跨域问题**：直接在前端调用各厂商的API会有跨域限制，所以必须用Node.js后端做一层代理转发，这也是为什么提示词里要求加后端的原因。
+3.  **模型适配**：不同厂商的API格式差异很大，比如OpenAI格式、百度千帆格式、字节豆包格式，Claude Code会帮你处理这些适配，但你需要提前准备好每个模型的API文档或调用示例。
+4.  **分步开发**：如果一次写不完，可以让Claude Code先帮你做前端界面，再做后端，最后集成，这样更不容易出错。
+
+以上是豆包的回答
+你是一个全栈 AI 开发工程师。我需要你帮我构建一个 Web 应用：一个窗口提问，五个大模型同时回答。
+
+项目名称：多模型 AI 聚合问答器
+目标模型：DeepSeek、文心一言（ERNIE-4.0）、通义千问（Qwen-Max）、豆包（Doubao-pro-32k）、智谱GLM-5
+
+== 技术规格 ==
+前端框架：React + TypeScript + Tailwind CSS
+后端：Next.js App Router + API Routes
+API 接入：通过 OneAPI 统一网关（OpenAI 标准格式）
+部署平台：Vercel
+Node.js 版本：>=18
+
+== OneAPI 部署先决条件 ==
+1. 在你部署代码前，我需要先在本机或服务器完成 OneAPI 的配置。
+2. 请在你的回答/代码生成步骤中，先给出 OneAPI 的部署命令和环境变量模板：
+   - Docker 命令示例：docker run -d --name oneapi -p 3000:3000 -v /path/to/data:/data justsong/one-api
+   - 容器启动后访问 http://localhost:3000，默认用户名/密码：root / 123456
+   - 添加至少三个渠道：DeepSeek API（从 platform.deepseek.com 获取 Key）、文心一言（百度云千帆）、通义千问（阿里云百炼）
+   - 记住各渠道对应的模型名称（例如：deepseek-chat、ernie-4.0、qwen-max）
+
+== 关键要求 ==
+- 前端页面顶部一个统一的输入框，发送后五个模型同时调用（并发）
+- 五个回答以卡片形式并排或纵向排列展示，每个卡片标题显示模型名称、状态（生成中/已完成/出错）
+- 实现流式输出（stream: true），回答逐步显示，提升用户体验
+- 后端必须做 API Key 防护，不能暴露在前端
+- 包含加载状态和错误重试机制
+- 设计上参考截图中的卡片布局风格
+
+== 代码结构 ==
+- /pages/index.tsx：前端主界面，包含输入框、五个模型的回答展示区
+- /pages/api/chat/route.ts：后端处理函数，接收请求并分发到五个模型
+- /utils/oneapi-client.ts：封装调用 OneAPI 的客户端
+- /types/index.ts：TypeScript 类型定义
+
+== 工作步骤（请严格遵守） ==
+1. 先检查现有环境是否有 package.json，没有则初始化
+2. 编写详细的实现计划（告诉我要怎么做，先不改代码）
+3. 逐步生成核心代码（前端组件 → 后端 API → 客户端工具 → 类型定义）
+4. 每完成一个步骤输出文件列表和简要说明，暂停等待我确认
+5. 最后提供启动命令和部署指南
+
+deepseek
+
+"Act as a Senior Full Stack Developer. I want to build a web application called 'AI Model Arena'.
+
+Goal: A user types a question in one input box, and 5 different AI models answer simultaneously in 5 separate panels.
+
+The 5 Models to integrate:
+
+DeepSeek
+Xiaomi MiMo (or Moonshot/Kimi if similar API structure)
+Baidu ERNIE Bot (文心一言)
+Alibaba Qwen (千问)
+ByteDance Doubao (豆包)
+Tech Stack:
+
+Frontend: React (Vite) + Tailwind CSS.
+Backend: Node.js (Express) or Python (FastAPI). Let's use Node.js for better async handling.
+Key Features Required:
+
+Concurrency: The backend must use Promise.all (if Node) to send requests to all 5 models at the exact same time. Do not wait for one to finish before starting the next.
+Streaming (SSE): Implement Server-Sent Events (SSE). The frontend should display text as it is being typed by the AI, not wait for the full response.
+UI Layout: A clean dashboard. Top: Input area. Bottom: A grid of 5 cards. Each card has the Model Name, a status indicator (Thinking...), and the streaming text.
+Error Handling: If one model API fails (e.g., rate limit), show an error in that specific card but keep the other 4 working.
+API Abstraction: Create a config file where I can easily paste my API Keys for each service. Handle the different JSON response formats (some follow OpenAI format, some like Baidu/Alibaba might have specific formats).
+Please provide:
+
+The complete folder structure.
+The Backend code (server.js) handling the logic.
+The Frontend code (App.jsx) for the UI.
+Instructions on how to run it."
+第二步：技术难点与 Claude Code 可能会遇到的坑
+当 Claude Code 开始写代码时，它可能会遇到以下问题，你可以提前知道：
+
+API 格式不统一 (最麻烦的一点)：
+DeepSeek, Kimi, 豆包, 千问：大多兼容 OpenAI 格式 (Chat Completions API)。这很好办，代码几乎一样。
+文心一言 (ERNIE)：百度的 API 格式比较特殊，通常需要先获取 access_token，然后请求特定的 URL。Claude Code 需要单独写一个函数来处理百度的鉴权。
+小米 MiMo：如果是小米自研的，可能需要查具体的 API 文档。
+浏览器并发限制：
+如果你试图在前端（浏览器里）直接用 JavaScript 去请求这 5 个接口，浏览器会 blocked（因为跨域 CORS 问题和并发连接数限制）。
+解决方案：必须通过你的后端服务器作为“代理”。前端只跟你的服务器说话，你的服务器去跟 5 个大模型说话。
+流式输出 (Streaming)：
+为了体验好，不能等 AI 写完 1000 字再显示。
+后端需要设置 stream: true，然后把数据切成小块（chunk）通过 SSE 推送给前端。Claude Code 写这个逻辑非常熟练。
+第三步：如果你想快速原型 (Python 方案)
+如果你不想配置 Node.js 环境，Claude Code 也可以用 Python (FastAPI) + Streamlit 快速生成一个演示页面。
+
+替代 Prompt (Python 版):
+
+"Use Python (FastAPI) for the backend and Streamlit for the frontend. Create a script that:
+
+Takes a user prompt.
+Uses httpx with async to call DeepSeek, ERNIE, Qwen, Doubao, and Kimi APIs concurrently.
+Streams the responses back to the Streamlit UI in real-time."
+
+
+百度文心一言
+
+
+目标：我要开发一个名为“AI Model Arena”的网页应用。
+功能描述：
+页面布局：采用网格布局（Grid），顶部是一个全局输入框，下方分为 5 个独立的卡片区域，分别对应 DeepSeek、Qwen、Ernie、Doubao、MiMo。
+交互逻辑：用户在顶部输入问题并回车后，该问题同时发送给后端的 5 个接口。
+显示逻辑：每个卡片区域独立显示对应模型的流式回答（Streaming response）。
+技术栈要求：
+前端：React + Vite + Tailwind CSS（用于快速美化）。
+后端：Node.js + Express（用于代理 API 请求，隐藏密钥）。
+具体步骤：
+请帮我初始化项目结构，创建 frontend 和 backend 文件夹。
+编写后端代码 server.js，设置 5 个路由（如 /api/deepseek, /api/qwen 等），每个路由负责调用对应的大模型 API 并返回 SSE 流。请在代码中预留 API Key 的位置。
+编写前端代码 App.jsx，实现网格布局和输入框，使用 fetch 或 axios 并发请求这 5 个后端接口，并处理流式数据显示。
+请确保代码包含错误处理（比如某个模型超时或报错，不影响其他模型）。
+现在，请开始第一步，初始化项目并安装依赖。
+千问的回答
+
+
+我还希望五个大模型我可以增加减少和调整窗口大小
+
