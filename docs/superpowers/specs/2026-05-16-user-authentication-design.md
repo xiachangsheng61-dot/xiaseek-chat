@@ -82,14 +82,25 @@ UNIQUE constraint on (user_id, model_id).
 
 ## Frontend Pages
 
-### login.html
+### index.html (public)
+
+- No auth required — landing page with navigation links
+- Links to `/chat.html` (requires login) and other pages
+
+### login.html (public)
 
 - Clean centered card layout matching the existing design system (CSS variables)
 - Toggle between Login and Register mode
 - Fields: username + password (password min 4 chars)
 - Error display for duplicate username / wrong password / etc
 - On success: redirect to `/chat.html`
-- Links to chat.html if already logged in (GET /api/auth/me returns 200)
+- If already logged in (GET /api/auth/me returns 200), redirect to `/chat.html`
+
+### chat.html (auth required)
+
+- Only page that requires login
+- Auth middleware only applies to /api/* routes used by this page
+- `index.html` and `login.html` are served as static files, no auth check
 
 ### chat.html changes
 

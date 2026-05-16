@@ -43,8 +43,10 @@
       <span class="text-sm hidden sm:inline" style="color:var(--text-secondary);">| 聚合对话</span>
     </div>
     <div class="flex items-center gap-2">
+      <span id="navUser" class="text-sm" style="color:var(--text-secondary);"></span>
       <button id="themeToggle" class="text-xl cursor-pointer px-1">🌓</button>
       <button id="settingsBtn" class="px-3 py-1.5 rounded-lg text-sm border cursor-pointer" style="border-color:var(--border);">⚙️ 模型设置</button>
+      <button onclick="logout()" class="px-3 py-1.5 rounded-lg text-sm border cursor-pointer" style="border-color:var(--border); color:var(--text);">登出</button>
       <a href="/" class="px-3 py-1.5 rounded-lg text-sm border cursor-pointer no-underline" style="border-color:var(--border); color:var(--text);">← 返回导航</a>
     </div>
   </nav>
@@ -107,16 +109,33 @@ let activeModels = [];
 let panelWidths = {};
 let isLoading = false;
 
+// ===== Auth =====
+async function checkAuth() {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`);
+    if (!res.ok) { window.location.href = '/login.html'; return null; }
+    return await res.json();
+  } catch { window.location.href = '/login.html'; return null; }
+}
+
+async function logout() {
+  await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+  window.location.href = '/login.html';
+}
+
 // ===== 初始化 =====
 async function init() {
   initTheme();
+  const auth = await checkAuth();
+  if (!auth) return;
   loadCustomModels();
-  loadModelKeys();
   await loadModels();
   loadActiveModels();
   loadPanelWidths();
   renderCards();
   setupKeyboardShortcut();
+  const navUser = document.getElementById('navUser');
+  if (navUser) navUser.textContent = auth.user.username;
 }
 
 function loadCustomModels() {
@@ -131,27 +150,26 @@ function saveCustomModels() {
 }
 
 
-let modelKeys = {};
-function loadModelKeys() {
-  try { modelKeys = JSON.parse(localStorage.getItem('xiaseek_model_keys') || '{}'); } catch { modelKeys = {}; }
-}
-function saveModelKeys() {
-  localStorage.setItem('xiaseek_model_keys', JSON.stringify(modelKeys));
-}
 function isModelUsable(m) {
-  if (m.configured !== false) return true;
-  if (modelKeys[m.id]) return true;
-  return false;
+  return m.configured === true;
 }
 
 async function loadModels() {
   try {
     const res = await fetch(`${API_BASE}/api/models`);
+    if (!res.ok) {
+      if (res.status === 401) { window.location.href = '/login.html'; return; }
+      availableModels = [...customModels];
+      return;
+    }
     const data = await res.json();
-    // 合并内置模型和自定义模型
     availableModels = [
       ...(data.models || []),
-      ...customModels
+      ...customModels.map(cm => ({
+        ...cm,
+        apiKey: undefined,
+        configured: false
+      }))
     ];
   } catch (err) {
     console.error('加载模型列表失败:', err);
@@ -328,15 +346,13 @@ async function sendMessage() {
 
   const modelIds = configuredModels.map(m => m.id);
   const customConfigs = configuredModels
+    .filter(m => !m.builtin)
     .map(m => {
       const c = { id: m.id, name: m.name };
-      const key = modelKeys[m.id] || m.apiKey;
-      if (key) c.apiKey = key;
       if (m.baseURL) c.baseURL = m.baseURL;
       if (m.model) c.model = m.model;
       return c;
-    })
-    .filter(c => c.apiKey);
+    });
 
   try {
     const res = await fetch(`${API_BASE}/api/chat/stream`, {
@@ -445,16 +461,15 @@ function openSettings() {
 
   function modelRow(m) {
     const isChecked = activeModels.includes(m.id);
-    const hasEnvKey = m.configured !== false;
-    const userKey = modelKeys[m.id] || '';
-    const ph = hasEnvKey ? '已配置(环境变量)' : '在此输入API Key';
+    const hasServerKey = m.configured === true;
+    const ph = hasServerKey ? '已配置(已保存)' : '在此输入API Key';
     return `
     <div class="flex items-center gap-2 p-2.5 rounded-lg" style="background:var(--bg);">
       <input type="checkbox" ${isChecked ? 'checked' : ''}
         onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
       <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
       <span class="text-sm font-medium flex-shrink-0" style="width:70px;">${m.name}</span>
-      <input type="password" value="${escapeAttr(userKey)}"
+      <input type="password" value=""
         placeholder="${ph}" id="keyinput-${m.id}"
         class="flex-1 p-1.5 rounded text-xs"
         style="background:var(--card-bg); border:1px solid var(--border); color:var(--text); min-width:0;">
@@ -468,20 +483,21 @@ function openSettings() {
     + (userCustomModels.length ? '<div class="text-xs mt-3 mb-2" style="color:var(--text-secondary);">自定义模型</div>' : '')
     + userCustomModels.map(m => {
       const isChecked = activeModels.includes(m.id);
-      const userKey = modelKeys[m.id] || m.apiKey || '';
+      const hasServerKey = m.configured === true;
+      const ph = hasServerKey ? '已配置(已保存)' : '在此输入API Key';
       return `
       <div class="flex items-center gap-2 p-2.5 rounded-lg" style="background:var(--bg);">
         <input type="checkbox" ${isChecked ? 'checked' : ''}
           onchange="toggleModel('${m.id}', this.checked)" class="w-4 h-4 flex-shrink-0">
         <span class="text-lg flex-shrink-0">${m.icon || '🤖'}</span>
         <span class="text-sm font-medium flex-shrink-0" style="width:70px;">${m.name}</span>
-        <input type="password" value="${escapeAttr(userKey)}"
-          placeholder="API Key" id="keyinput-${m.id}"
+        <input type="password" value=""
+          placeholder="${escapeAttr(ph)}" id="keyinput-${m.id}"
           class="flex-1 p-1.5 rounded text-xs"
           style="background:var(--card-bg); border:1px solid var(--border); color:var(--text); min-width:0;">
         <button onclick="saveModelKey('${m.id}')" id="savebtn-${m.id}"
           class="px-2 py-1 rounded text-xs font-semibold flex-shrink-0 cursor-pointer border"
-          style="background:var(--primary); color:#fff; border-color:var(--primary);">保存</button>
+          style="background:var(--primary); color:#fff; border-color:var(--primary);">覆盖</button>
         <button onclick="event.preventDefault(); removeCustomModel('${m.id}')" class="text-xs cursor-pointer flex-shrink-0" style="color:#ef4444;" title="删除">✕</button>
       </div>`;
     }).join('');
@@ -495,28 +511,39 @@ function closeSettings() {
   document.getElementById('settingsModal').classList.add('hidden');
 }
 
-function saveModelKey(modelId) {
+async function saveModelKey(modelId) {
   const input = document.getElementById('keyinput-' + modelId);
   const btn = document.getElementById('savebtn-' + modelId);
   if (!input || !btn) return;
   const value = input.value.trim();
-  if (value) {
-    modelKeys[modelId] = value;
-  } else {
-    delete modelKeys[modelId];
+
+  try {
+    if (value) {
+      await fetch(`${API_BASE}/api/user/keys/${modelId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: value })
+      });
+    } else {
+      await fetch(`${API_BASE}/api/user/keys/${modelId}`, { method: 'DELETE' });
+    }
+
+    btn.textContent = '✓ 已保存';
+    btn.style.background = '#22c55e';
+    btn.style.borderColor = '#22c55e';
+    setTimeout(() => {
+      btn.textContent = '保存';
+      btn.style.background = 'var(--primary)';
+      btn.style.borderColor = 'var(--primary)';
+    }, 1500);
+
+    await loadModels();
+    loadActiveModels();
+    renderCards();
+  } catch (err) {
+    btn.textContent = '❌ 失败';
+    setTimeout(() => { btn.textContent = '保存'; }, 1500);
   }
-  saveModelKeys();
-  btn.textContent = '✓ 已保存';
-  btn.style.background = '#22c55e';
-  btn.style.borderColor = '#22c55e';
-  setTimeout(() => {
-    btn.textContent = '保存';
-    btn.style.background = 'var(--primary)';
-    btn.style.borderColor = 'var(--primary)';
-  }, 1500);
-  // Refresh cards to pick up the new key
-  loadActiveModels();
-  renderCards();
 }
 
 function escapeAttr(str) {
@@ -550,7 +577,7 @@ function toggleAddForm() {
   }
 }
 
-function addCustomModel() {
+async function addCustomModel() {
   const name = document.getElementById('customName').value.trim();
   const model = document.getElementById('customModel').value.trim();
   const baseURL = document.getElementById('customBaseURL').value.trim();
@@ -563,22 +590,33 @@ function addCustomModel() {
 
   const id = 'custom_' + Date.now();
   const customModel = {
-    id, name, model, baseURL, apiKey, icon,
+    id, name, model, baseURL, icon,
     provider: 'openai',
     builtin: false,
-    configured: true
+    configured: false
   };
 
   customModels.push(customModel);
   saveCustomModels();
 
-  // 重新加载模型列表
+  try {
+    await fetch(`${API_BASE}/api/user/keys/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey })
+    });
+  } catch (err) {
+    customModels.pop();
+    saveCustomModels();
+    return alert('保存密钥失败，请重试');
+  }
+
   availableModels = [...availableModels.filter(m => m.builtin), ...customModels];
   activeModels.push(id);
   saveActiveModels();
 
   toggleAddForm();
-  openSettings(); // 刷新设置面板
+  openSettings();
   renderCards();
 }
 

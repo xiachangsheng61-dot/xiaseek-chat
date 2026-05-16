@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - 虾SeekAI 聚合对话</title>
+<style>
+:root {
+  --bg: #f8f9fa; --card-bg: #ffffff; --text: #1a1a2e;
+  --text-secondary: #6b7280; --border: #e5e7eb; --primary: #FF6B6B;
+}
+.dark { --bg: #121212; --card-bg: #1e1e2e; --text: #e0e0e0; --text-secondary: #9ca3af; --border: #333; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; display: flex;
+  align-items: center; justify-content: center; transition: background 0.2s, color 0.2s;
+}
+.card {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+  padding: 32px; width: 100%; max-width: 400px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+.logo { text-align: center; font-size: 24px; font-weight: 800; margin-bottom: 24px; color: var(--primary); }
+.logo a { color: var(--primary); text-decoration: none; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); }
+.field input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  font-size: 14px; background: var(--bg); color: var(--text); outline: none; transition: border 0.2s;
+}
+.field input:focus { border-color: var(--primary); }
+.btn {
+  width: 100%; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 700;
+  cursor: pointer; border: none; transition: all 0.2s; margin-top: 8px;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { opacity: 0.9; }
+.error { color: #ef4444; font-size: 13px; margin-top: 8px; text-align: center; min-height: 20px; }
+.switch { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-secondary); }
+.switch a { color: var(--primary); cursor: pointer; font-weight: 600; }
+.back { text-align: center; margin-top: 12px; }
+.back a { color: var(--text-secondary); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo"><a href="/">🦐 虾SeekAI</a></div>
+  <div class="logo" style="font-size:16px;font-weight:600;margin-bottom:20px;" id="formTitle">登录聚合对话</div>
+
+  <div class="field">
+    <label>用户名</label>
+    <input type="text" id="username" placeholder="输入用户名" autocomplete="username">
+  </div>
+  <div class="field">
+    <label>密码</label>
+    <input type="password" id="password" placeholder="输入密码" autocomplete="current-password">
+  </div>
+  <div id="confirmField" class="field" style="display:none;">
+    <label>确认密码</label>
+    <input type="password" id="confirmPassword" placeholder="再次输入密码" autocomplete="new-password">
+  </div>
+
+  <div class="error" id="error"></div>
+
+  <button class="btn btn-primary" id="submitBtn" onclick="handleSubmit()">登 录</button>
+
+  <div class="switch">
+    <span id="switchText">没有账号？</span> <a id="switchLink" onclick="toggleMode()">去注册</a>
+  </div>
+  <div class="back"><a href="/">← 返回导航首页</a></div>
+</div>
+
+<script>
+let mode = 'login';
+
+async function checkAlreadyLoggedIn() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (res.ok) { window.location.href = '/chat.html'; }
+  } catch {}
+}
+
+function toggleMode() {
+  mode = mode === 'login' ? 'register' : 'login';
+  document.getElementById('formTitle').textContent = mode === 'login' ? '登录聚合对话' : '注册新账号';
+  document.getElementById('submitBtn').textContent = mode === 'login' ? '登 录' : '注 册';
+  document.getElementById('switchText').textContent = mode === 'login' ? '没有账号？' : '已有账号？';
+  document.getElementById('switchLink').textContent = mode === 'login' ? '去注册' : '去登录';
+  document.getElementById('confirmField').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('error').textContent = '';
+}
+
+async function handleSubmit() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const errorEl = document.getElementById('error');
+
+  if (!username || !password) {
+    errorEl.textContent = '请填写用户名和密码';
+    return;
+  }
+
+  if (mode === 'register') {
+    const confirm = document.getElementById('confirmPassword').value;
+    if (password !== confirm) {
+      errorEl.textContent = '两次密码不一致';
+      return;
+    }
+    if (password.length < 4) {
+      errorEl.textContent = '密码至少4个字符';
+      return;
+    }
+  }
+
+  const url = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || '操作失败';
+      return;
+    }
+    window.location.href = '/chat.html';
+  } catch (err) {
+    errorEl.textContent = '网络错误，请重试';
+  }
+}
+
+document.getElementById('password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') handleSubmit();
+});
+
+checkAlreadyLoggedIn();
+</script>
+</body>
+</html>

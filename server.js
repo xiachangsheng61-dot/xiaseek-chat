@@ -1,70 +1,43 @@
-// server.js — 多模型API聚合网关
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const db = require('./server/db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Session config (MemoryStore — sessions lost on restart, acceptable for now)
+const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 app.use(cors());
 app.use(express.json());
+app.use(session({
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  },
+  name: 'xiaseek.sid'
+}));
+
+// Static files (public — no auth)
 app.use(express.static(path.join(__dirname)));
 
-// 模型配置注册表（密钥从环境变量读取）
-const MODEL_REGISTRY = {
-  deepseek: {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    provider: 'openai',
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-    icon: '🐋',
-    builtin: true
-  },
-  qwen: {
-    id: 'qwen',
-    name: '通义千问',
-    provider: 'openai',
-    apiKey: process.env.QWEN_API_KEY,
-    baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    model: process.env.QWEN_MODEL || 'qwen-max',
-    icon: '☁️',
-    builtin: true
-  },
-  doubao: {
-    id: 'doubao',
-    name: '豆包',
-    provider: 'openai',
-    apiKey: process.env.DOUBAO_API_KEY,
-    baseURL: process.env.DOUBAO_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3',
-    model: process.env.DOUBAO_MODEL || 'doubao-pro-32k',
-    icon: '🫘',
-    builtin: true
-  },
-  ernie: {
-    id: 'ernie',
-    name: '文心一言',
-    provider: 'ernie',
-    apiKey: process.env.ERNIE_API_KEY,
-    secretKey: process.env.ERNIE_SECRET_KEY,
-    model: process.env.ERNIE_MODEL || 'ernie-4.0',
-    icon: '📘',
-    builtin: true
-  },
-  glm: {
-    id: 'glm',
-    name: '智谱GLM',
-    provider: 'openai',
-    apiKey: process.env.GLM_API_KEY,
-    baseURL: process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
-    model: process.env.GLM_MODEL || 'glm-4',
-    icon: '🏛️',
-    builtin: true
+// ===== Auth middleware =====
+function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: '请先登录' });
   }
-};
+  next();
+}
 
+// ===== Helper =====
 function isValidKey(key) {
   if (!key) return false;
   const lower = key.toLowerCase();
@@ -73,34 +46,182 @@ function isValidKey(key) {
   return true;
 }
 
-function isModelConfigured(m) {
-  if (m.provider === 'ernie') return isValidKey(m.apiKey) && isValidKey(m.secretKey);
-  return isValidKey(m.apiKey);
-}
+// ===== Model registry (NO API keys — keys are per-user) =====
+const MODEL_REGISTRY = {
+  deepseek: {
+    id: 'deepseek', name: 'DeepSeek', provider: 'openai',
+    baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    icon: '🐋', builtin: true
+  },
+  qwen: {
+    id: 'qwen', name: '通义千问', provider: 'openai',
+    baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: process.env.QWEN_MODEL || 'qwen-max',
+    icon: '☁️', builtin: true
+  },
+  doubao: {
+    id: 'doubao', name: '豆包', provider: 'openai',
+    baseURL: process.env.DOUBAO_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3',
+    model: process.env.DOUBAO_MODEL || 'doubao-pro-32k',
+    icon: '🫘', builtin: true
+  },
+  ernie: {
+    id: 'ernie', name: '文心一言', provider: 'ernie',
+    baseURL: '',
+    model: process.env.ERNIE_MODEL || 'ernie-4.0',
+    icon: '📘', builtin: true
+  },
+  glm: {
+    id: 'glm', name: '智谱GLM', provider: 'openai',
+    baseURL: process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
+    model: process.env.GLM_MODEL || 'glm-4',
+    icon: '🏛️', builtin: true
+  }
+};
 
-// GET /api/models — 返回所有模型列表（含 configured 状态，不含密钥）
-app.get('/api/models', (req, res) => {
-  const models = Object.values(MODEL_REGISTRY)
-    .map(({ id, name, provider, model, icon, builtin }) => ({
-      id, name, provider, model, icon, builtin,
-      configured: isModelConfigured(MODEL_REGISTRY[id])
-    }));
-  res.json({ models });
+// ===== Auth routes (public — no middleware) =====
+
+// POST /api/auth/register
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: '用户名和密码不能为空' });
+    }
+    if (typeof username !== 'string' || username.trim().length < 2) {
+      return res.status(400).json({ error: '用户名至少2个字符' });
+    }
+    if (typeof password !== 'string' || password.length < 4) {
+      return res.status(400).json({ error: '密码至少4个字符' });
+    }
+
+    const name = username.trim();
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const user = await db.createUser(name, passwordHash);
+
+    if (!user) {
+      return res.status(409).json({ error: '用户名已存在' });
+    }
+
+    req.session.userId = user.id;
+    res.json({ ok: true, user: { id: user.id, username: user.username } });
+  } catch (err) {
+    res.status(500).json({ error: '注册失败，请重试' });
+  }
 });
 
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: '用户名和密码不能为空' });
+    }
+
+    const user = await db.getUserByUsername(username.trim());
+    if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
+      return res.status(401).json({ error: '用户名或密码错误' });
+    }
+
+    req.session.userId = user.id;
+    res.json({ ok: true, user: { id: user.id, username: user.username } });
+  } catch (err) {
+    res.status(500).json({ error: '登录失败，请重试' });
+  }
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.clearCookie('xiaseek.sid');
+    res.json({ ok: true });
+  });
+});
+
+// GET /api/auth/me
+app.get('/api/auth/me', async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: '未登录' });
+  }
+  const user = await db.getUserById(req.session.userId);
+  if (!user) {
+    req.session.destroy(() => {});
+    return res.status(401).json({ error: '用户不存在' });
+  }
+  res.json({ user: { id: user.id, username: user.username } });
+});
+
+// ===== Key management routes (auth required) =====
+
+// PUT /api/user/keys/:modelId
+app.put('/api/user/keys/:modelId', requireAuth, async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const { apiKey } = req.body || {};
+
+    if (!apiKey || !isValidKey(apiKey)) {
+      return res.status(400).json({ error: '无效的API密钥' });
+    }
+
+    await db.saveKey(req.session.userId, modelId, apiKey);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: '保存密钥失败' });
+  }
+});
+
+// DELETE /api/user/keys/:modelId
+app.delete('/api/user/keys/:modelId', requireAuth, async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    await db.deleteKey(req.session.userId, modelId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: '删除密钥失败' });
+  }
+});
+
+// ===== Models route (auth required) =====
+
+// GET /api/models — returns model list with per-user configured status
+app.get('/api/models', requireAuth, async (req, res) => {
+  try {
+    const userKeys = await db.getUserKeys(req.session.userId);
+    const keySet = new Set(userKeys.map(k => k.model_id));
+
+    const models = Object.values(MODEL_REGISTRY)
+      .map(({ id, name, provider, model, icon, builtin }) => ({
+        id, name, provider, model, icon, builtin,
+        configured: keySet.has(id)
+      }));
+    res.json({ models });
+  } catch (err) {
+    res.status(500).json({ error: '获取模型列表失败' });
+  }
+});
+
+// ===== SSE helpers =====
 function sendSSE(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-// POST /api/chat/stream — 流式对话接口
-app.post('/api/chat/stream', async (req, res) => {
+// ===== Chat route (auth required) =====
+
+// POST /api/chat/stream
+app.post('/api/chat/stream', requireAuth, async (req, res) => {
   const { message, modelIds, customModels, conversationHistory } = req.body;
 
   if (!message || !modelIds || !modelIds.length) {
     return res.status(400).json({ error: '缺少 message 或 modelIds' });
   }
 
-  // 合并自定义模型（前端传来的临时配置，含apiKey）
+  // Load user keys
+  const userKeys = await db.getUserKeys(req.session.userId);
+  const keyMap = {};
+  userKeys.forEach(k => { keyMap[k.model_id] = k.api_key; });
+
+  // Merge custom model configs (baseURL, model name overrides from client)
   const customMap = {};
   if (Array.isArray(customModels)) {
     customModels.forEach(m => { customMap[m.id] = m; });
@@ -114,25 +235,40 @@ app.post('/api/chat/stream', async (req, res) => {
   });
 
   const tasks = modelIds.map(async (modelId) => {
-    // 1. 查注册表获取内置配置（含 .env 密钥）
     let config = MODEL_REGISTRY[modelId] ? { ...MODEL_REGISTRY[modelId] } : null;
-    // 2. 合并前端传来的自定义覆盖（localStorage 优先于 .env）
+
     if (customMap[modelId]) {
       const override = customMap[modelId];
       if (config) {
-        if (override.apiKey) config.apiKey = override.apiKey;
         if (override.baseURL) config.baseURL = override.baseURL;
         if (override.model) config.model = override.model;
       } else {
         config = { ...override, provider: 'openai' };
       }
     }
+
     if (!config) {
       sendSSE(res, 'error', { modelId, error: `未知模型: ${modelId}` });
       return;
     }
-    if (!isModelConfigured(config)) {
+
+    // Set keys from user's saved keys
+    if (config.provider === 'ernie') {
+      // ERNIE: user enters "apiKey|secretKey" format
+      const raw = keyMap[modelId] || '';
+      const parts = raw.split('|');
+      config.apiKey = parts[0] || '';
+      config.secretKey = parts[1] || '';
+    } else {
+      config.apiKey = keyMap[modelId] || '';
+    }
+
+    if (!isValidKey(config.apiKey)) {
       sendSSE(res, 'error', { modelId, error: `${config.name} 未配置有效的API密钥，请在设置中填写` });
+      return;
+    }
+    if (config.provider === 'ernie' && !isValidKey(config.secretKey)) {
+      sendSSE(res, 'error', { modelId, error: `${config.name} 未配置有效的Secret Key，请在设置中填写（格式：APIKey|SecretKey）` });
       return;
     }
 
@@ -151,6 +287,8 @@ app.post('/api/chat/stream', async (req, res) => {
   sendSSE(res, 'done', {});
   res.end();
 });
+
+// ===== Streaming functions (unchanged from original) =====
 
 async function streamOpenAI(res, config, message, history) {
   const modelId = config.id;
@@ -275,8 +413,9 @@ async function streamErnie(res, config, message, history) {
   sendSSE(res, 'complete', { modelId, content: fullContent });
 }
 
+// ===== Start server =====
 app.listen(PORT, () => {
-  const configured = Object.values(MODEL_REGISTRY).filter(isModelConfigured).map(m => m.name);
   console.log(`🚀 聚合对话API网关已启动: http://localhost:${PORT}`);
-  console.log(`📋 内置模型(${Object.keys(MODEL_REGISTRY).length}) 已配置(${configured.length}): ${configured.join(', ') || '无'}`);
+  console.log(`📋 内置模型: ${Object.values(MODEL_REGISTRY).map(m => m.name).join(', ')}`);
+  console.log(`🔑 密钥由每个用户独立管理`);
 });
